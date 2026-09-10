@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-	<!-- Session 4: only the setup/connection flow needs network access. -->
+	<!-- Session 4: network access for the remote server (REST + WebSocket). -->
 	<uses-permission android:name="android.permission.INTERNET" />
-	<!-- Plain LAN traffic (self-signed TLS) must not be blocked by cleartext rules; kept explicit for clarity. -->
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-	<!-- Session 5: the app class acts as the minimal DI container (ConnectionRepository). -->
+	<!-- Session 6: foreground service keeps the socket alive; ask-notifications need POST_NOTIFICATIONS on Android 13+. -->
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+	<!-- Session 5: the app class acts as the minimal DI container (ConnectionRepository, AskNotifier). -->
 	<application
 		android:name=".ZooRemoteApp"
 		android:allowBackup="true"
@@ -23,6 +27,15 @@
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
 		</activity>
+
+		<!-- Session 6: foreground service holding the WebSocket + persistent connection notification. -->
+		<service
+			android:name=".service.ConnectionService"
+			android:exported="false"
+			android:foregroundServiceType="dataSync" />
+
+		<!-- Receives "Genehmigen"/"Ablehnen" from the ask notification actions. -->
+		<receiver android:name=".service.AskActionReceiver" android:exported="false" />
 	</application>
 
 </manifest>

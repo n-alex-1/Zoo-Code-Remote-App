@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.xilox.zooremote.app.data.api.ActivityItem
+import de.xilox.zooremote.app.data.api.AskText
+import de.xilox.zooremote.app.data.api.RemoteSuggestion
 import de.xilox.zooremote.app.data.connection.ConnectionState
 import io.noties.markwon.Markwon
 
@@ -76,13 +79,17 @@ fun StatusScreen(
 		val items = state.activity
 		ActivityFeed(items, modifier = Modifier.weight(1f).fillMaxWidth())
 
-		// Follow-up suggestions above the input row (session 5: rendered only — tapping sends in session 6).
-		val suggestions = state.lastStatus?.task?.pendingAsk?.suggestions
-		if (!suggestions.isNullOrEmpty()) {
-			SuggestionButtonsRow(suggestions.map { it.answer })
+		if (state.actionError != null) {
+			ActionErrorBanner(state.actionError.orEmpty())
 		}
 
-		InputRow(state)
+		// Follow-up suggestions above the input row; tapping sends messageResponse (+ mode switch if carried).
+		val suggestions = state.lastStatus?.task?.pendingAsk?.suggestions
+		if (!suggestions.isNullOrEmpty()) {
+			SuggestionButtonsRow(suggestions, busy = state.busy) { viewModel.tapSuggestion(it) }
+		}
+
+		InputRow(state, viewModel = viewModel)
 	}
 }
 
@@ -342,15 +349,7 @@ private fun AskRow(item: ActivityItem) {
 }
 
 /** Extracts the human-readable question from a followup ask's JSON text; falls back to raw text. */
-private fun askQuestionText(item: ActivityItem): String? {
-	val text = item.text ?: return null
-	if (item.category == "followup") {
-		runCatching {
-			org.json.JSONObject(text).optString("question").takeIf { it.isNotBlank() }
-		}.getOrNull()?.let { return it }
-	}
-	return if (text.length > 300) text.take(299) + "…" else text
-}
+private fun askQuestionText(item: ActivityItem): String? = AskText.question(item.category, item.text)
 
 @Composable
 private fun GenericRow(item: ActivityItem) {
@@ -365,34 +364,50 @@ private fun GenericRow(item: ActivityItem) {
  * ------------------------------------------------------------------ */
 
 @Composable
-private fun SuggestionButtonsRow(suggestions: List<String>) {
+private fun SuggestionButtonsRow(suggestions: List<RemoteSuggestion>, busy: Boolean, onPick: (RemoteSuggestion) -> Unit) {
 	Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
 		Row(
 			modifier = Modifier.horizontalScroll(rememberScrollState()),
 			horizontalArrangement = Arrangement.spacedBy(8.dp),
 		) {
-			suggestions.forEach { answer ->
-				OutlinedButton(onClick = {}, enabled = false, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-					Text(answer.take(60), style = MaterialTheme.typography.labelMedium) // session 6: tap sends.
+			suggestions.forEach { suggestion ->
+				val label = buildString {
+					append(suggestion.answer.take(60))
+					suggestion.mode?.let { append("  →  $it") }
+				}
+				OutlinedButton(onClick = { onPick(suggestion) }, enabled = !busy, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+					Text(label, style = MaterialTheme.typography.labelMedium)
 				}
 			}
 		}
-		Text("Vorschläge werden in Session 6 aktiv.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 	}
 }
 
 @Composable
-private fun InputRow(state: StatusUiState) {
+private fun ActionErrorBanner(message: String) {
+	Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
+		Text(
+			text = message,
+			style = MaterialTheme.typography.bodySmall,
+			color = MaterialTheme.colorScheme.onErrorContainer,
+			modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+		)
+	}
+}
+
+@Composable
+private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 	val task = state.lastStatus?.task
 	val ask = task?.pendingAsk
 	var input by remember { mutableStateOf("") }
+	val canSend = !input.isBlank() && !state.busy && (ask == null || ask.expectsText)
 
 	Surface(shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
 		Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
 			if (ask != null && ask.canApprove) {
 				Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
-					Button(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) { Text("Genehmigen") } // session 6.
-					OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) { Text("Ablehnen") } // session 6.
+					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Genehmigen") }
+					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Ablehnen") }
 				}
 			} else if (task != null) {
 				Text(taskStatusLabel(task.state), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -408,9 +423,12 @@ private fun InputRow(state: StatusUiState) {
 					modifier = Modifier.weight(1f),
 				)
 				Spacer(Modifier.width(8.dp))
-				Button(onClick = {}, enabled = false) { Text("Senden") } // session 6.
+				if (state.busy) {
+					CircularProgressIndicator(modifier = Modifier.size(24.dp))
+				} else {
+					Button(onClick = { viewModel.sendText(input); input = "" }, enabled = canSend) { Text("Senden") }
+				}
 			}
-			Text("Senden wird in Session 6 aktiviert.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
 		}
 	}
 }

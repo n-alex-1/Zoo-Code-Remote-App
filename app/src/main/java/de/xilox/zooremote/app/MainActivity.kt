@@ -1,15 +1,19 @@
 package de.xilox.zooremote.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,13 +27,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import de.xilox.zooremote.app.data.ConnectionSettings
 import de.xilox.zooremote.app.data.SettingsRepository
+import de.xilox.zooremote.app.service.ConnectionService
 import de.xilox.zooremote.app.ui.setup.SetupScreen
 import de.xilox.zooremote.app.ui.status.StatusScreen
 import kotlinx.coroutines.flow.first
 
 /**
- * Single-activity host. Session 5 adds the Status destination: Setup ↔ Status navigation; when
- * valid saved settings exist, the app starts on Status (see docs/architektur.md section 2).
+ * Single-activity host. Session 5 added the Status destination (Setup ↔ Status navigation, start
+ * on Status when valid settings exist). Session 6 starts the foreground [ConnectionService] and
+ * requests the Android 13+ notification permission so ask-notifications can appear.
  */
 class MainActivity : ComponentActivity() {
 
@@ -39,7 +45,7 @@ class MainActivity : ComponentActivity() {
 			val dark = isSystemInDarkTheme()
 			MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
 				Surface(modifier = Modifier.fillMaxSize()) {
-					ZooRemoteNavHost(settingsRepository = SettingsRepository(this))
+					ZooRemoteNavHost(settingsRepository = SettingsRepository(this), activity = this)
 				}
 			}
 		}
@@ -49,6 +55,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ZooRemoteNavHost(
 	settingsRepository: SettingsRepository,
+	activity: ComponentActivity,
 	navController: NavHostController = rememberNavController(),
 ) {
 	// Wait for the DataStore's first emission (always available immediately) to decide the start
@@ -62,6 +69,14 @@ private fun ZooRemoteNavHost(
 
 	val startOnStatus = savedSettings?.isValid() == true
 	val startDestination = if (startOnStatus) "status" else "setup"
+
+	// Session 6: keep the connection alive in a foreground service and make sure notifications
+	// are allowed (Android 13+ runtime permission).
+	if (savedSettings!!.isValid()) {
+		ConnectionService.start(activity.applicationContext)
+	}
+	RequestNotificationPermissionIfNeeded(activity, savedSettings!!.isValid())
+
 	NavHost(navController = navController, startDestination = startDestination) {
 		composable("setup") {
 			SetupScreen(
@@ -75,4 +90,12 @@ private fun ZooRemoteNavHost(
 		}
 		// Session 7: composable("mode"), composable("model") — chips become clickable.
 	}
+}
+
+@Composable
+private fun RequestNotificationPermissionIfNeeded(activity: ComponentActivity, needed: Boolean) {
+	if (!needed || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+	var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) }
+	val launcher = androidx.activity.compose.rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { result -> granted = result }
+	LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS) }
 }
