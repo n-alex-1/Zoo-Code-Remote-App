@@ -54,10 +54,30 @@ data class PendingAsk(
 	val suggestions: List<RemoteSuggestion>? = null,
 )
 
+/** Feed entry as held by the UI layer (alias of [RemoteActivityPayload]). */
+typealias ActivityItem = RemoteActivityPayload
+
 @Serializable
 data class RemoteSuggestion(
 	val answer: String,
 	val mode: String? = null,
+)
+
+/** Slender ClineMessage extract for the app's chat feed — payload of WS `message` events. */
+@Serializable
+data class RemoteActivityPayload(
+	/** Identity of the line; a payload with an already-seen ts replaces that line (streaming). */
+	val ts: Long,
+	/** "say" | "ask". */
+	val kind: String = "say",
+	/** ClineSay/ClineAsk value ("text", "reasoning", "completion_result", "tool", "command", "error", ...). */
+	val category: String = "",
+	/** Markdown, max 2000 chars; no file contents (per contract). */
+	val text: String? = null,
+	/** true = streaming chunk that replaces the line with the same ts. */
+	val partial: Boolean? = null,
+	/** Only for kind="ask": whether the ask has been answered already. */
+	val answered: Boolean? = null,
 )
 
 @Serializable

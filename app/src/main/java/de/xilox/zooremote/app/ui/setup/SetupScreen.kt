@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -30,12 +31,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
  * button that runs `GET /api/health` + `GET /api/status` against the pinned server.
  */
 @Composable
-fun SetupScreen(viewModel: SetupViewModel = viewModel()) {
+fun SetupScreen(onSuccess: () -> Unit, viewModel: SetupViewModel = viewModel()) {
 	val host by viewModel.host.collectAsState()
 	val portText by viewModel.portText.collectAsState()
 	val token by viewModel.token.collectAsState()
 	val fingerprint by viewModel.fingerprint.collectAsState()
 	val phase by viewModel.phase.collectAsState()
+
+	// Session 5: navigate to the status screen once the connection test succeeded.
+	LaunchedEffect(phase) {
+		if (phase is SetupPhase.Success) onSuccess()
+	}
 
 	Column(
 		modifier = Modifier

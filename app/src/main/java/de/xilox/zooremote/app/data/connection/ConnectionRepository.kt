@@ -1,0 +1,140 @@
+package de.xilox.zooremote.app.data.connection
+
+import android.content.Context
+import de.xilox.zooremote.app.data.ConnectionSettings
+import de.xilox.zooremote.app.data.SettingsRepository
+import de.xilox.zooremote.app.data.api.ActivityItem
+import de.xilox.zooremote.app.data.api.RemoteActivityPayload
+import de.xilox.zooremote.app.data.api.RemoteStatus
+import de.xilox.zooremote.app.data.api.TlsTrust
+import de.xilox.zooremote.app.data.ws.StatusSocket
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+
+/** Connection lifecycle as seen by the UI. */
+sealed interface ConnectionState {
+	data object Disconnected : ConnectionState
+
+	/** Initial connect or a reconnect attempt (exponential backoff). */
+	data object Connecting : ConnectionState
+
+	data object Connected : ConnectionState
+
+	/** Non-retryable error (wrong token, changed certificate) — user must re-pair in setup. */
+	data class Error(val message: String) : ConnectionState
+}
+
+/**
+ * Central connection holder ("hoisted state", session 5 spec): owns the [StatusSocket] so that a
+ * later foreground service (session 6) can reuse it, and maintains the shared UI state —
+ * connection state, latest [RemoteStatus] and the activity feed.
+ */
+class ConnectionRepository(context: Context) {
+
+	companion object {
+		/** In-memory cap for the activity feed; oldest entries are dropped first. */
+		const val MAX_FEED_ENTRIES = 200
+	}
+
+	private val settingsRepository = SettingsRepository(context.applicationContext)
+
+	private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+	/** Current connection state. */
+	val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+	private val _status = MutableStateFlow<RemoteStatus?>(null)
+	/** Latest status snapshot (WS `status` events). */
+	val status: StateFlow<RemoteStatus?> = _status.asStateFlow()
+
+	private val _activity = MutableStateFlow<List<ActivityItem>>(emptyList())
+	/** Activity feed; entries with the same [RemoteActivityPayload.ts] replace each other (streaming). */
+	val activity: StateFlow<List<ActivityItem>> = _activity.asStateFlow()
+
+	@Volatile
+	private var socket: StatusSocket? = null
+
+	@Volatile
+	private var lastTaskId: String? = null
+
+	/** Mutable backing list for [activity]; all mutations happen inside `synchronized(this)`. */
+	private val feed = mutableListOf<RemoteActivityPayload>()
+
+	/** True while a socket is open or being (re-)established. */
+	fun isActive(): Boolean = socket?.isRunning == true
+
+	suspend fun savedSettings(): ConnectionSettings = settingsRepository.observe().first()
+
+	/** (Re)connect with [settings]: closes any previous socket first and resets feed/status. */
+	fun connect(settings: ConnectionSettings) {
+		if (!settings.isValid()) return
+		disconnect()
+		synchronized(this) {
+			feed.clear()
+			lastTaskId = null
+			_activity.value = emptyList()
+		}
+		_status.value = null
+		_connectionState.value = ConnectionState.Connecting
+
+		val client = TlsTrust.client(settings.certFingerprint)
+		val url = "wss://${settings.host.trim()}:${settings.port}/events"
+		socket = StatusSocket(client, url, settings.token).also { it.start(listener) }
+	}
+
+	/** Closes the socket and stops reconnect attempts. */
+	fun disconnect() {
+		socket?.stop()
+		socket = null
+		_connectionState.value = ConnectionState.Disconnected
+	}
+
+	private val listener = object : StatusSocket.Listener {
+		override fun onConnected() {
+			// The server is about to send fresh status + activity snapshots — adopt them as the
+			// initial state, so clear whatever we had before (covers reconnects).
+			synchronized(this@ConnectionRepository) {
+				feed.clear()
+				lastTaskId = null
+				_activity.value = emptyList()
+			}
+			_connectionState.value = ConnectionState.Connected
+		}
+
+		override fun onStatus(status: RemoteStatus) {
+			val taskId = status.task.taskId
+			synchronized(this@ConnectionRepository) {
+				if (taskId != null && taskId != lastTaskId) {
+					// New task started in the plugin → clear the feed; the server's activity
+					// snapshot only ever covers the active task.
+					feed.clear()
+					_activity.value = emptyList()
+				}
+				lastTaskId = taskId
+			}
+			_status.value = status
+		}
+
+		override fun onActivity(payload: RemoteActivityPayload) {
+			synchronized(this@ConnectionRepository) {
+				val index = feed.indexOfLast { it.ts == payload.ts }
+				if (index >= 0) feed[index] = payload else feed.add(payload)
+				while (feed.size > MAX_FEED_ENTRIES) feed.removeAt(0)
+				_activity.value = feed.toList()
+			}
+		}
+
+		override fun onDisconnected(code: Int, reason: String) {
+			_connectionState.value = ConnectionState.Connecting
+		}
+
+		override fun onReconnecting(attempt: Int) {
+			_connectionState.value = ConnectionState.Connecting
+		}
+
+		override fun onTerminalError(message: String) {
+			_connectionState.value = ConnectionState.Error(message)
+		}
+	}
+}
