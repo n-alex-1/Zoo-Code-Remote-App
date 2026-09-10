@@ -28,6 +28,8 @@ import androidx.navigation.compose.rememberNavController
 import de.xilox.zooremote.app.data.ConnectionSettings
 import de.xilox.zooremote.app.data.SettingsRepository
 import de.xilox.zooremote.app.service.ConnectionService
+import de.xilox.zooremote.app.ui.models.ModelScreen
+import de.xilox.zooremote.app.ui.modes.ModeScreen
 import de.xilox.zooremote.app.ui.setup.SetupScreen
 import de.xilox.zooremote.app.ui.status.StatusScreen
 import kotlinx.coroutines.flow.first
@@ -86,9 +88,19 @@ private fun ZooRemoteNavHost(
 			)
 		}
 		composable("status") {
-			StatusScreen(onOpenSettings = { navController.navigate("setup") })
+			StatusScreen(
+				onOpenSettings = { navController.navigate("setup") },
+				onOpenModes = { navController.navigate("modes") },
+				onOpenModels = { navController.navigate("models") },
+			)
 		}
-		// Session 7: composable("mode"), composable("model") — chips become clickable.
+		// Session 7: mode & model pickers, reachable from the status screen's chips.
+		composable("modes") {
+			ModeScreen(onBack = { navController.popBackStack() })
+		}
+		composable("models") {
+			ModelScreen(onBack = { navController.popBackStack() })
+		}
 	}
 }
 

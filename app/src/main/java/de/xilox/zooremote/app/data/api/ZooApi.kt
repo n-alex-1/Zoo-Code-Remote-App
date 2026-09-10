@@ -42,6 +42,10 @@ class ZooApi(
 	@Serializable
 	data class ModeCommand(val slug: String)
 
+	/** Body of `POST /api/model`; [modelId] is optional (profile switch only). */
+	@Serializable
+	data class ModelCommand(val profileId: String, val modelId: String? = null)
+
 	@Serializable
 	private data class OkResult(val ok: Boolean = false, val error: String? = null)
 
@@ -60,10 +64,43 @@ class ZooApi(
 		if (!result.ok && !result.error.isNullOrBlank()) throw ZooApiException(result.error.orEmpty(), body = result.error)
 	}
 
-	/** `POST /api/mode` — switches the extension's mode by slug. */
-	fun setMode(slug: String) {
-		val result = post("api/mode", ModeCommand(slug), ModeCommand.serializer(), OkResult.serializer())
-		if (!result.ok && !result.error.isNullOrBlank()) throw ZooApiException(result.error.orEmpty(), body = result.error)
+	/** `GET /api/modes` — all built-in and custom modes. */
+	fun getModes(): ModesResponse = get("api/modes", ModesResponse.serializer())
+
+	/** `GET /api/models` — provider profiles plus the currently active model id. */
+	fun getModels(): ModelsResponse = get("api/models", ModelsResponse.serializer())
+
+	/**
+	 * `POST /api/mode` — switches the extension's mode by slug. Returns the fresh [RemoteStatus]
+	 * when the server sent one (contract), otherwise null (fallback `{ ok: true }`).
+	 */
+	fun setMode(slug: String): RemoteStatus? = postAction("api/mode", ModeCommand(slug), ModeCommand.serializer())
+
+	/**
+	 * `POST /api/model` — activates a provider profile by [profileId]; when [modelId] is given,
+	 * it overrides the profile's model. Returns the fresh [RemoteStatus], or null on fallback.
+	 */
+	fun setModel(profileId: String, modelId: String? = null): RemoteStatus? =
+		postAction("api/model", ModelCommand(profileId, modelId), ModelCommand.serializer())
+
+	/**
+	 * Shared POST for action routes whose success body is the fresh [RemoteStatus] per contract.
+	 * Tolerates the `{ ok: true }` fallback (no status fields → returns null).
+	 */
+	private fun <B> postAction(path: String, body: B, bodySerializer: KSerializer<B>): RemoteStatus? {
+		val payload = json.encodeToString(bodySerializer, body).toRequestBody("application/json".toMediaType())
+		val request = Request.Builder()
+			.url("$baseUrl/$path")
+			.header("Authorization", "Bearer $token")
+			.post(payload)
+			.build()
+		client.newCall(request).execute().use { res ->
+			val responseBody = res.body?.string().orEmpty()
+			if (!res.isSuccessful) {
+				throw ZooApiException("HTTP ${res.code} von /$path", res.code, responseBody.take(300))
+			}
+			return if (responseBody.contains("\"task\"")) json.decodeFromString(RemoteStatus.serializer(), responseBody) else null
+		}
 	}
 
 	private fun <T> get(path: String, deserializer: KSerializer<T>): T {

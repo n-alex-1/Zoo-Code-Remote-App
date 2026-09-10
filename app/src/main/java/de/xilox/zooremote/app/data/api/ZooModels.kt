@@ -99,3 +99,37 @@ data class ModelRef(
 		if (isEmpty()) append("(unbekannt)")
 	}
 }
+
+/* ------------------------------------------------------------------ *
+ * Mode & model switching endpoints (session 7)
+ * ------------------------------------------------------------------ */
+
+/** `GET /api/modes` entry — a built-in or custom mode. */
+@Serializable
+data class ModeInfo(
+	val slug: String,
+	val name: String,
+)
+
+/** One provider profile of `GET /api/models`. */
+@Serializable
+data class ProfileInfo(
+	val id: String,
+	val name: String,
+	val provider: String? = null,
+	/** Model configured for this profile (may differ from the live model after an override). */
+	val modelId: String? = null,
+)
+
+/** `GET /api/modes` response. */
+@Serializable
+data class ModesResponse(
+	val modes: List<ModeInfo> = emptyList(),
+)
+
+/** `GET /api/models` response — profiles plus the currently active model id (may be blank). */
+@Serializable
+data class ModelsResponse(
+	val profiles: List<ProfileInfo> = emptyList(),
+	val currentModel: String = "",
+)

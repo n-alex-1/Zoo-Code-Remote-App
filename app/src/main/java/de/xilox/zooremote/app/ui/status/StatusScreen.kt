@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -41,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -48,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -59,25 +64,45 @@ import de.xilox.zooremote.app.data.api.AskText
 import de.xilox.zooremote.app.data.api.RemoteSuggestion
 import de.xilox.zooremote.app.data.connection.ConnectionState
 import io.noties.markwon.Markwon
+import kotlinx.coroutines.launch
 
 /**
  * Session 5 status screen — chat layout per `docs/architektur.md` section 2: top bar with
  * connection dot + mode/model/context chips, a large live activity feed in the middle and an
  * always-visible input row with contextual control buttons at the bottom.
+ *
+ * Session 7: the mode/model chips navigate to their picker screens; the feed supports
+ * pull-to-refresh (`GET /api/status` fallback) and distinguishes "never connected" from a
+ * connected-but-empty feed.
  */
 @Composable
 fun StatusScreen(
 	onOpenSettings: () -> Unit,
+	onOpenModes: () -> Unit = {},
+	onOpenModels: () -> Unit = {},
 	viewModel: StatusViewModel = viewModel(),
 ) {
 	val state by viewModel.uiState.collectAsState()
 
 	Column(modifier = Modifier.fillMaxSize()) {
-		StatusTopBar(state.connectionState, modeLabel = state.lastStatus?.mode?.label.orEmpty(), modelLine = state.lastStatus?.model?.describe().orEmpty(), contextText = contextChipText(state))
+		StatusTopBar(
+			connectionState = state.connectionState,
+			modeLabel = state.lastStatus?.mode?.label.orEmpty(),
+			modelLine = state.lastStatus?.model?.describe().orEmpty(),
+			contextText = contextChipText(state),
+			onModeClick = onOpenModes,
+			onModelClick = onOpenModels,
+		)
 		ConnectionBanner(state.connectionState, onOpenSettings)
 
 		val items = state.activity
-		ActivityFeed(items, modifier = Modifier.weight(1f).fillMaxWidth())
+		val neverConnected = state.lastStatus == null && state.activity.isEmpty() && (state.connectionState is ConnectionState.Disconnected || state.connectionState is ConnectionState.Error)
+		ActivityFeed(
+			items = items,
+			modifier = Modifier.weight(1f).fillMaxWidth(),
+			neverConnected = neverConnected,
+			onPullToRefresh = { viewModel.pullToRefresh() },
+		)
 
 		if (state.actionError != null) {
 			ActionErrorBanner(state.actionError.orEmpty())
@@ -98,7 +123,14 @@ fun StatusScreen(
  * ------------------------------------------------------------------ */
 
 @Composable
-private fun StatusTopBar(connectionState: ConnectionState, modeLabel: String, modelLine: String, contextText: String?) {
+private fun StatusTopBar(
+	connectionState: ConnectionState,
+	modeLabel: String,
+	modelLine: String,
+	contextText: String?,
+	onModeClick: () -> Unit,
+	onModelClick: () -> Unit,
+) {
 	val (dotColor, dotLabel) = when (connectionState) {
 		is ConnectionState.Connected -> Color(0xFF2E7D32) to "Verbunden"
 		is ConnectionState.Connecting -> Color(0xFFF9A825) to "Verbinde…"
@@ -121,8 +153,9 @@ private fun StatusTopBar(connectionState: ConnectionState, modeLabel: String, mo
 
 			if (modeLabel.isNotEmpty() || modelLine.isNotEmpty() || contextText != null) {
 				Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp)) {
-					if (modeLabel.isNotEmpty()) Chip(modeLabel)
-					if (modelLine.isNotEmpty()) Chip(modelLine)
+					// Session 7: chips are clickable and open the mode/model picker screens.
+					if (modeLabel.isNotEmpty()) Chip(modeLabel, onClick = onModeClick)
+					if (modelLine.isNotEmpty()) Chip(modelLine, onClick = onModelClick)
 					contextText?.let { Chip(it, highlighted = true) }
 				}
 			}
@@ -131,10 +164,18 @@ private fun StatusTopBar(connectionState: ConnectionState, modeLabel: String, mo
 }
 
 @Composable
-private fun Chip(text: String, highlighted: Boolean = false) {
+private fun Chip(
+	text: String,
+	highlighted: Boolean = false,
+	onClick: (() -> Unit)? = null,
+) {
 	val background = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
 	val foreground = if (highlighted) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-	Surface(color = background, shape = CircleShape) {
+	Surface(
+		color = background,
+		shape = CircleShape,
+		modifier = Modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+	) {
 		Text(
 			text = text,
 			color = foreground,
@@ -193,7 +234,12 @@ private fun ConnectionBanner(connectionState: ConnectionState, onOpenSettings: (
  * ------------------------------------------------------------------ */
 
 @Composable
-private fun ActivityFeed(items: List<ActivityItem>, modifier: Modifier = Modifier) {
+private fun ActivityFeed(
+	items: List<ActivityItem>,
+	modifier: Modifier = Modifier,
+	neverConnected: Boolean = false,
+	onPullToRefresh: () -> Unit = {},
+) {
 	val listState = rememberLazyListState()
 	var stickToBottom by remember { mutableStateOf(true) }
 
@@ -215,18 +261,52 @@ private fun ActivityFeed(items: List<ActivityItem>, modifier: Modifier = Modifie
 
 	if (items.isEmpty()) {
 		Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-			Text("Noch keine Aktivität — starte eine Task in VS-Code.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+			Text(
+				text = if (neverConnected) "Noch nie verbunden — in VS-Code den Remote-Server starten und verbinden." else "Noch keine Aktivität — starte eine Task in VS-Code.",
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				modifier = Modifier.padding(horizontal = 24.dp),
+			)
 		}
 		return
 	}
 
+	val scope = rememberCoroutineScope()
+
 	LazyColumn(
 		state = listState,
-		modifier = modifier.fillMaxSize(),
+		modifier = modifier.fillMaxSize().then(
+			if (items.size > 1) {
+				Modifier.pointerInput(Unit) {
+					awaitEachGesture {
+						val down = awaitFirstDown(requireUnconsumed = false)
+						// Pull from the very top: refresh via GET /api/status (session 7 fallback).
+						if (down.position.y < 48f && listState.firstVisibleItemIndex == 0) {
+							scope.launch { onPullToRefresh() }
+						}
+					}
+				}
+			} else Modifier,
+		),
 		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 		verticalArrangement = Arrangement.spacedBy(10.dp),
 	) {
 		items(items, key = { it.ts }) { item -> ActivityRow(item) }
+	}
+}
+
+/** Consistent task-state badge (session 7): color + label for every state. */
+@Composable
+fun TaskStateBadge(state: String, modifier: Modifier = Modifier) {
+	val (color, label) = when (state) {
+		"running" -> Color(0xFFF9A825) to "Läuft…"
+		"waiting_for_input" -> Color(0xFF1565C0) to "Wartet auf Eingabe"
+		"completed" -> Color(0xFF2E7D32) to "Fertig"
+		"error" -> Color(0xFFC62828) to "Fehler"
+		else -> MaterialTheme.colorScheme.onSurfaceVariant to "Idle"
+	}
+	Surface(color = color.copy(alpha = 0.15f), shape = CircleShape, modifier = modifier) {
+		Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
 	}
 }
 
@@ -410,7 +490,7 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Ablehnen") }
 				}
 			} else if (task != null) {
-				Text(taskStatusLabel(task.state), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+				TaskStateBadge(task.state, modifier = Modifier.padding(bottom = 4.dp))
 			}
 
 			Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
@@ -431,14 +511,6 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 			}
 		}
 	}
-}
-
-private fun taskStatusLabel(state: String): String = when (state) {
-	"running" -> "Läuft…"
-	"waiting_for_input" -> "Wartet auf Eingabe"
-	"completed" -> "Fertig"
-	"error" -> "Fehler"
-	else -> "Idle"
 }
 
 /* ------------------------------------------------------------------ *

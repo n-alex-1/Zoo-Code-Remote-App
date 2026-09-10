@@ -14,7 +14,7 @@ android {
 		minSdk = 26
 		targetSdk = 34
 		versionCode = 1
-		versionName = "0.3.0-session6"
+		versionName = "0.4.0-session7"
 	}
 
 	buildTypes {
@@ -59,4 +59,8 @@ dependencies {
 	implementation(libs.datastore.preferences)
 
 	debugImplementation(libs.compose.ui.tooling)
+
+	testImplementation(libs.junit)
+	// Real org.json implementation for JVM unit tests (the mockable android.jar stub would otherwise win).
+	testImplementation(libs.json)
 }

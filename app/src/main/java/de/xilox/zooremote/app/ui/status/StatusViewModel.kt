@@ -89,6 +89,32 @@ class StatusViewModel(application: Application) : AndroidViewModel(application) 
 		}
 	}
 
+	/**
+	 * Pull-to-refresh fallback (session 7): fetches `GET /api/status` when the WebSocket feed is
+	 * stale or absent. Shares [busyFlow] with the other actions so controls stay disabled while it
+	 * runs; failures surface via [StatusUiState.actionError].
+	 */
+	fun pullToRefresh() {
+		viewModelScope.launch(Dispatchers.IO) {
+			if (busyFlow.value) return@launch
+			busyFlow.value = true
+			errorClearJob?.cancel()
+			errorFlow.value = null
+			try {
+				repository.refreshStatus()
+			} catch (e: ZooApiException) {
+				failAction(when (e.httpCode) {
+					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
+					else -> e.message ?: "Aktualisierung fehlgeschlagen"
+				})
+			} catch (e: Exception) {
+				failAction(e.message ?: e::class.java.simpleName)
+			} finally {
+				busyFlow.value = false
+			}
+		}
+	}
+
 	private fun runAction(call: (ZooApi) -> Unit) {
 		viewModelScope.launch(Dispatchers.IO) {
 			if (busyFlow.value) return@launch

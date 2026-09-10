@@ -7,6 +7,7 @@ import de.xilox.zooremote.app.data.api.ActivityItem
 import de.xilox.zooremote.app.data.api.RemoteActivityPayload
 import de.xilox.zooremote.app.data.api.RemoteStatus
 import de.xilox.zooremote.app.data.api.TlsTrust
+import de.xilox.zooremote.app.data.api.ZooApi
 import de.xilox.zooremote.app.data.ws.StatusSocket
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,6 +91,40 @@ class ConnectionRepository(context: Context) {
 		_connectionState.value = ConnectionState.Disconnected
 	}
 
+	/**
+	 * Pull-to-refresh fallback (session 7): fetches `GET /api/status` with the saved settings and
+	 * adopts it as the current snapshot. Returns true when a fresh status was applied. Runs on
+	 * [Dispatchers.IO] by its callers; throws for connection/HTTP errors (see ZooApi).
+	 */
+	suspend fun refreshStatus(): Boolean {
+		val settings = savedSettings()
+		if (!settings.isValid()) return false
+		val api = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token)
+		val status = api.status()
+		applySnapshot(status, clearFeedOnNewTask = true)
+		return true
+	}
+
+	/** Adopts a fresh status from an action response (session 7); same semantics as WS `status` events. */
+	fun adoptStatus(status: RemoteStatus) = applySnapshot(status, clearFeedOnNewTask = true)
+
+	private fun applySnapshot(status: RemoteStatus, clearFeedOnNewTask: Boolean) {
+		val taskId = status.task.taskId
+		synchronized(this@ConnectionRepository) {
+			if (clearFeedOnNewTask && taskId != null && taskId != lastTaskId) {
+				// New task started in the plugin → clear the feed; the server's activity
+				// snapshot only ever covers the active task.
+				feed.clear()
+				_activity.value = emptyList()
+			}
+			lastTaskId = taskId
+		}
+		_status.value = status
+		if (_connectionState.value == ConnectionState.Disconnected) {
+			_connectionState.value = ConnectionState.Connected
+		}
+	}
+
 	private val listener = object : StatusSocket.Listener {
 		override fun onConnected() {
 			// The server is about to send fresh status + activity snapshots — adopt them as the
@@ -103,17 +138,7 @@ class ConnectionRepository(context: Context) {
 		}
 
 		override fun onStatus(status: RemoteStatus) {
-			val taskId = status.task.taskId
-			synchronized(this@ConnectionRepository) {
-				if (taskId != null && taskId != lastTaskId) {
-					// New task started in the plugin → clear the feed; the server's activity
-					// snapshot only ever covers the active task.
-					feed.clear()
-					_activity.value = emptyList()
-				}
-				lastTaskId = taskId
-			}
-			_status.value = status
+			applySnapshot(status, clearFeedOnNewTask = true)
 		}
 
 		override fun onActivity(payload: RemoteActivityPayload) {
