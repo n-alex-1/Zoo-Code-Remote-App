@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- Base theme for the single Compose activity; colors come from Material3 in code. -->
+	<style name="Theme.ZooRemote" parent="android:Theme.Material.Light.NoActionBar">
+		<item name="android:statusBarColor">#1C1B1F</item>
+	</style>
+</resources>
