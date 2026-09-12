@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Top-bar brand glyph — same "signal" shape as the launcher foreground, tinted by Compose. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="24dp"
+	android:height="24dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<path
+		android:fillColor="#FF000000"
+		android:pathData="M54,62 a8,8 0 1,0 0.001,0 z" />
+	<path
+		android:strokeColor="#FF000000"
+		android:strokeWidth="5"
+		android:fillColor="#00000000"
+		android:pathData="M42,70 a17,17 0 0,1 0,-24" />
+	<path
+		android:strokeColor="#FF000000"
+		android:strokeWidth="5"
+		android:fillColor="#00000000"
+		android:pathData="M66,70 a17,17 0 0,0 0,-24" />
+</vector>

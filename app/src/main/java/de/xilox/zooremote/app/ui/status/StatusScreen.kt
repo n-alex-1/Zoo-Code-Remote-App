@@ -1,8 +1,10 @@
 package de.xilox.zooremote.app.ui.status
 
+import android.view.ContextThemeWrapper
 import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -30,7 +33,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -52,10 +57,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -80,6 +87,7 @@ fun StatusScreen(
 	onOpenSettings: () -> Unit,
 	onOpenModes: () -> Unit = {},
 	onOpenModels: () -> Unit = {},
+	onOpenSessions: () -> Unit = {},
 	viewModel: StatusViewModel = viewModel(),
 ) {
 	val state by viewModel.uiState.collectAsState()
@@ -92,6 +100,9 @@ fun StatusScreen(
 			contextText = contextChipText(state),
 			onModeClick = onOpenModes,
 			onModelClick = onOpenModels,
+			// Session 9: settings & sessions are reachable at all times (not only via the offline banner).
+			onOpenSettings = onOpenSettings,
+			onOpenSessions = onOpenSessions,
 		)
 		ConnectionBanner(state.connectionState, onOpenSettings)
 
@@ -102,6 +113,8 @@ fun StatusScreen(
 			modifier = Modifier.weight(1f).fillMaxWidth(),
 			neverConnected = neverConnected,
 			onPullToRefresh = { viewModel.pullToRefresh() },
+			// Session 8b UI fix: follow-up suggestions are tappable in the feed as well.
+			onPickSuggestion = { viewModel.tapSuggestion(it) },
 		)
 
 		if (state.actionError != null) {
@@ -130,6 +143,8 @@ private fun StatusTopBar(
 	contextText: String?,
 	onModeClick: () -> Unit,
 	onModelClick: () -> Unit,
+	onOpenSettings: () -> Unit = {},
+	onOpenSessions: () -> Unit = {},
 ) {
 	val (dotColor, dotLabel) = when (connectionState) {
 		is ConnectionState.Connected -> Color(0xFF2E7D32) to "Verbunden"
@@ -146,7 +161,8 @@ private fun StatusTopBar(
 			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			Text("Zoo Remote", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+			// Session 9: short title so it never truncates next to the chips and icons.
+			Text("Zoo", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
 			Box(modifier = Modifier.size(10.dp).background(dotColor, CircleShape), contentAlignment = Alignment.Center) {}
 			Spacer(Modifier.width(6.dp))
 			Text(dotLabel, style = MaterialTheme.typography.bodySmall, color = dotColor)
@@ -159,6 +175,11 @@ private fun StatusTopBar(
 					contextText?.let { Chip(it, highlighted = true) }
 				}
 			}
+
+			// Session 9: sessions & settings icons — always reachable, also while connected.
+			Spacer(Modifier.width(8.dp))
+			TopBarIconButton(Icons.Filled.History, "Sessions", onClick = onOpenSessions)
+			TopBarIconButton(Icons.Filled.Settings, "Einstellungen", onClick = onOpenSettings)
 		}
 	}
 }
@@ -183,6 +204,19 @@ private fun Chip(
 			maxLines = 1,
 			modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
 		)
+	}
+}
+
+/** Session 9: top-bar icon button (sessions / settings). */
+@Composable
+private fun TopBarIconButton(imageVector: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
+	Surface(
+		color = MaterialTheme.colorScheme.surfaceVariant,
+		shape = CircleShape,
+		modifier = Modifier.size(32.dp).clickable(onClick = onClick),
+	) {
+		// 7dp padding centers the 18dp icon inside the 32dp circle (M3 Surface has no contentAlignment here — session 5 tooling note).
+		Icon(imageVector, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp).padding(7.dp))
 	}
 }
 
@@ -239,6 +273,7 @@ private fun ActivityFeed(
 	modifier: Modifier = Modifier,
 	neverConnected: Boolean = false,
 	onPullToRefresh: () -> Unit = {},
+	onPickSuggestion: (RemoteSuggestion) -> Unit = {},
 ) {
 	val listState = rememberLazyListState()
 	var stickToBottom by remember { mutableStateOf(true) }
@@ -291,7 +326,7 @@ private fun ActivityFeed(
 		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
 		verticalArrangement = Arrangement.spacedBy(10.dp),
 	) {
-		items(items, key = { it.ts }) { item -> ActivityRow(item) }
+		items(items, key = { it.ts }) { item -> ActivityRow(item, onPickSuggestion) }
 	}
 }
 
@@ -311,7 +346,7 @@ fun TaskStateBadge(state: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ActivityRow(item: ActivityItem) {
+private fun ActivityRow(item: ActivityItem, onPickSuggestion: (RemoteSuggestion) -> Unit = {}) {
 	when (item.category) {
 		"reasoning" -> ReasoningRow(item)
 		"text" -> MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth())
@@ -320,7 +355,7 @@ private fun ActivityRow(item: ActivityItem) {
 		"error" -> ErrorRow(item)
 
 		else -> when (item.kind) {
-			"ask" -> AskRow(item)
+			"ask" -> AskRow(item, onPickSuggestion)
 			else -> GenericRow(item)
 		}
 	}
@@ -337,7 +372,8 @@ private fun ReasoningRow(item: ActivityItem) {
 		shape = RoundedCornerShape(8.dp),
 		modifier = Modifier.fillMaxWidth(),
 	) {
-		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+		// Session 8b UI fix: the whole row (chevron included) toggles expansion on tap.
+		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).clickable { expanded = !expanded }) {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Text(if (streaming) "Thinking…" else "Gedanken", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
 				Icon(
@@ -411,7 +447,7 @@ private fun ErrorRow(item: ActivityItem) {
 
 /** Pending asks highlighted; answered ones dimmed. */
 @Composable
-private fun AskRow(item: ActivityItem) {
+private fun AskRow(item: ActivityItem, onPickSuggestion: (RemoteSuggestion) -> Unit = {}) {
 	val answered = item.answered == true
 	Surface(
 		color = if (answered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.secondaryContainer,
@@ -424,6 +460,14 @@ private fun AskRow(item: ActivityItem) {
 			if (!question.isNullOrBlank()) {
 				Text(question, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
 			}
+			// Session 8b UI fix: follow-up suggestions are tappable right in the feed (same payload as
+			// the bottom bar's SuggestionButtonsRow).
+			if (!answered) {
+				val chips = AskText.suggestions(item.category, item.text)
+				if (chips.isNotEmpty()) {
+					SuggestionChipsColumn(chips, onPickSuggestion, modifier = Modifier.padding(top = 8.dp))
+				}
+			}
 		}
 	}
 }
@@ -433,9 +477,32 @@ private fun askQuestionText(item: ActivityItem): String? = AskText.question(item
 
 @Composable
 private fun GenericRow(item: ActivityItem) {
-	Text(item.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+	// Session 8b UI fix: user feedback (and other plain-text says) render as visible markdown — the
+	// previous label-only rendering swallowed the text.
 	if (!item.text.isNullOrBlank()) {
-		MarkdownText(item.text.orEmpty(), modifier = Modifier.padding(top = 2.dp).fillMaxWidth())
+		MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth())
+	} else {
+		Text(item.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+	}
+}
+
+/** Vertical list of tappable suggestion chips (feed variant; the bottom bar keeps its own row). */
+@Composable
+private fun SuggestionChipsColumn(suggestions: List<RemoteSuggestion>, onPick: (RemoteSuggestion) -> Unit, modifier: Modifier = Modifier) {
+	Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+		suggestions.forEach { suggestion ->
+			val label = buildString {
+				append(suggestion.answer.take(80))
+				suggestion.mode?.let { append("  →  $it") }
+			}
+			Surface(
+				color = MaterialTheme.colorScheme.surfaceVariant,
+				shape = RoundedCornerShape(6.dp),
+				modifier = Modifier.fillMaxWidth().clickable(onClick = { onPick(suggestion) }),
+			) {
+				Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+			}
+		}
 	}
 }
 
@@ -480,7 +547,17 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 	val task = state.lastStatus?.task
 	val ask = task?.pendingAsk
 	var input by remember { mutableStateOf("") }
-	val canSend = !input.isBlank() && !state.busy && (ask == null || ask.expectsText)
+
+	// Session 9 fix: the input row is ALWAYS sendable. The ViewModel routes the text depending on
+	// the current status (answer a pending ask / continue or queue into the active session / start
+	// a new session) — previously `canSend` was locked while no text-ask was pending, which left
+	// the user stuck after a 409 ("already answered").
+	val canSend = !input.isBlank() && !state.busy
+
+	// Session 9: suggestion taps prefill the input row (user can still edit before sending).
+	LaunchedEffect(state.prefillText) {
+		state.prefillText?.let { input = it }
+	}
 
 	Surface(shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
 		Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -493,13 +570,37 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 				TaskStateBadge(task.state, modifier = Modifier.padding(bottom = 4.dp))
 			}
 
+			// Session 9: stop the current task at any time while it is running or waiting for input.
+			val canStop = !state.busy && task != null && (task.state == "running" || task.state == "waiting_for_input")
+			if (canStop) {
+				Row(modifier = Modifier.padding(bottom = 4.dp)) {
+					OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+						Text("Stopp", style = MaterialTheme.typography.labelMedium)
+					}
+				}
+			}
+
 			Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
 				OutlinedTextField(
 					value = input,
 					onValueChange = { input = it },
-					placeholder = { Text("Antwort…") },
+					placeholder = {
+						Text(
+							when {
+								ask != null && ask.expectsText -> "Antwort…"
+								task?.taskId != null -> "Nachricht an die Session…"
+								else -> "Neue Session starten…"
+							}
+						)
+					},
 					singleLine = true,
 					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+					keyboardActions = KeyboardActions(onSend = {
+						if (input.isNotBlank() && !state.busy) {
+							viewModel.sendText(input)
+							input = ""
+						}
+					}),
 					modifier = Modifier.weight(1f),
 				)
 				Spacer(Modifier.width(8.dp))
@@ -520,9 +621,20 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 @Composable
 private fun MarkdownText(markdown: String, modifier: Modifier = Modifier) {
 	val context = LocalContext.current
-	val markwon = remember(context) { Markwon.create(context) }
+	val dark = isSystemInDarkTheme()
+	// Session 8b UI fix: Markwon resolves its body color from the *Android* theme of the given
+	// context — with the activity's light base theme that produced black text on the Compose dark
+	// background. Wrap in a matching Material (dark/light) theme so spans resolve correctly.
+	val themedContext = remember(context, dark) {
+		ContextThemeWrapper(
+			context,
+			if (dark) android.R.style.Theme_Material_NoActionBar else android.R.style.Theme_Material_Light_NoActionBar,
+		)
+	}
+	val markwon = remember(themedContext) { Markwon.create(themedContext) }
 	// Captured in composable scope — the factory lambda below is not @Composable.
-	val textColorInt = MaterialTheme.colorScheme.onSurface.value.toInt()
+	// toArgb(), nicht value.toInt(): value ist ULong mit ColorSpace-ID in den unteren 32 Bit (= 0 = transparent).
+	val textColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
 	AndroidView(
 		factory = { ctx ->
 			TextView(ctx).apply {

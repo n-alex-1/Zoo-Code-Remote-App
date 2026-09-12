@@ -32,6 +32,7 @@ import de.xilox.zooremote.app.data.SettingsRepository
 import de.xilox.zooremote.app.service.ConnectionService
 import de.xilox.zooremote.app.ui.models.ModelScreen
 import de.xilox.zooremote.app.ui.modes.ModeScreen
+import de.xilox.zooremote.app.ui.sessions.SessionScreen
 import de.xilox.zooremote.app.ui.setup.SetupScreen
 import de.xilox.zooremote.app.ui.status.StatusScreen
 import kotlinx.coroutines.flow.first
@@ -107,6 +108,7 @@ private fun ZooRemoteNavHost(
 				onOpenSettings = { navController.navigate("setup") },
 				onOpenModes = { navController.navigate("modes") },
 				onOpenModels = { navController.navigate("models") },
+				onOpenSessions = { navController.navigate("sessions") },
 			)
 		}
 		// Session 7: mode & model pickers, reachable from the status screen's chips.
@@ -115,6 +117,10 @@ private fun ZooRemoteNavHost(
 		}
 		composable("models") {
 			ModelScreen(onBack = { navController.popBackStack() })
+		}
+		// Session 9: session picker (task history + new session + recently used workspaces).
+		composable("sessions") {
+			SessionScreen(onBack = { navController.popBackStack() })
 		}
 	}
 }

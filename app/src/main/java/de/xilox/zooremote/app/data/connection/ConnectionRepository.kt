@@ -49,6 +49,12 @@ class ConnectionRepository(context: Context) {
 	/** Latest status snapshot (WS `status` events). */
 	val status: StateFlow<RemoteStatus?> = _status.asStateFlow()
 
+	// Session 9: workspace folder of the extension host — lets the session picker request the
+	// per-workspace history (`GET /api/tasks?workspace=…`) like the webview's own list does.
+	private val _activeWorkspace = MutableStateFlow<String?>(null)
+	/** Workspace of the connected extension host (from `status.connection.workspace`). */
+	val activeWorkspace: StateFlow<String?> = _activeWorkspace.asStateFlow()
+
 	private val _activity = MutableStateFlow<List<ActivityItem>>(emptyList())
 	/** Activity feed; entries with the same [RemoteActivityPayload.ts] replace each other (streaming). */
 	val activity: StateFlow<List<ActivityItem>> = _activity.asStateFlow()
@@ -92,6 +98,7 @@ class ConnectionRepository(context: Context) {
 			_activity.value = emptyList()
 		}
 		_status.value = null
+		_activeWorkspace.value = null
 		_connectionState.value = ConnectionState.Connecting
 
 		val client = TlsTrust.client(settings.certFingerprint)
@@ -125,6 +132,9 @@ class ConnectionRepository(context: Context) {
 
 	private fun applySnapshot(status: RemoteStatus, clearFeedOnNewTask: Boolean) {
 		val taskId = status.task.taskId
+		if (status.connection.workspace != _activeWorkspace.value) {
+			_activeWorkspace.value = status.connection.workspace
+		}
 		synchronized(this@ConnectionRepository) {
 			if (clearFeedOnNewTask && taskId != null && taskId != lastTaskId) {
 				// New task started in the plugin → clear the feed; the server's activity
@@ -161,6 +171,17 @@ class ConnectionRepository(context: Context) {
 				val index = feed.indexOfLast { it.ts == payload.ts }
 				if (index >= 0) feed[index] = payload else feed.add(payload)
 				while (feed.size > MAX_FEED_ENTRIES) feed.removeAt(0)
+				_activity.value = feed.toList()
+			}
+		}
+
+		override fun onActivitySnapshot(payloads: List<RemoteActivityPayload>) {
+			// Session 9: the plugin switched to a different task — replace the whole feed with
+			// the new task's history instead of waiting for live events that only cover the future.
+			synchronized(this@ConnectionRepository) {
+				feed.clear()
+				feed.addAll(payloads.takeLast(MAX_FEED_ENTRIES))
+				lastTaskId = null // next status re-arms the per-task feed clearing
 				_activity.value = feed.toList()
 			}
 		}

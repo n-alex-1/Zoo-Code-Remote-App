@@ -23,6 +23,8 @@ data class RemoteStatus(
 data class ConnectionInfo(
 	val extensionVersion: String = "",
 	val apiVersion: String = "1",
+	/** Workspace folder of the extension host (session 9); lets the app filter history per workspace. */
+	val workspace: String? = null,
 )
 
 /** Task block of [RemoteStatus]. `state` is one of idle | running | waiting_for_input | completed | error. */
@@ -132,4 +134,42 @@ data class ModesResponse(
 data class ModelsResponse(
 	val profiles: List<ProfileInfo> = emptyList(),
 	val currentModel: String = "",
+)
+
+/* ------------------------------------------------------------------ *
+ * Session 9 — task history & workspaces endpoints.
+ * ------------------------------------------------------------------ */
+
+/** One entry of the task history (`GET /api/tasks`) — newest first, max 50 entries. */
+@Serializable
+data class RemoteTaskInfo(
+	val taskId: String,
+	/** Start timestamp (ms). */
+	val ts: Long = 0,
+	/** Task title, truncated to 200 chars by the server. */
+	val task: String = "",
+	val mode: String? = null,
+	/** "active" | "completed" | "delegated" | "interrupted". */
+	val status: String? = null,
+	val workspace: String? = null,
+)
+
+/** `GET /api/tasks` response. */
+@Serializable
+data class TasksResponse(
+	val tasks: List<RemoteTaskInfo> = emptyList(),
+)
+
+/** A recently used VS Code workspace (`GET /api/workspaces`) — newest first, max 10 entries. */
+@Serializable
+data class WorkspaceInfo(
+	/** Workspace/project folder path (for `code <path>`). */
+	val path: String,
+	val name: String? = null,
+)
+
+/** `GET /api/workspaces` response. */
+@Serializable
+data class WorkspacesResponse(
+	val workspaces: List<WorkspaceInfo> = emptyList(),
 )

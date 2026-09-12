@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import java.io.IOException
+import java.net.URLEncoder
 
 /** Thrown for non-2xx HTTP responses; [httpCode] lets callers distinguish e.g. 401 (wrong token). */
 class ZooApiException(
@@ -46,6 +47,18 @@ class ZooApi(
 	@Serializable
 	data class ModelCommand(val profileId: String, val modelId: String? = null)
 
+	/** Body of `POST /api/task/start` (session 9). */
+	@Serializable
+	data class TaskStartCommand(val text: String)
+
+	/** Body of `POST /api/task/open` (session 9). */
+	@Serializable
+	data class TaskOpenCommand(val taskId: String)
+
+	/** Body of `POST /api/workspace/open` (session 9). */
+	@Serializable
+	data class WorkspaceOpenCommand(val path: String)
+
 	@Serializable
 	private data class OkResult(val ok: Boolean = false, val error: String? = null)
 
@@ -82,6 +95,63 @@ class ZooApi(
 	 */
 	fun setModel(profileId: String, modelId: String? = null): RemoteStatus? =
 		postAction("api/model", ModelCommand(profileId, modelId), ModelCommand.serializer())
+
+	/* ------------------------------------------------------------------ *
+	 * Session 9 — task history & workspaces.
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * `GET /api/tasks` — task history, newest first (max 50 entries). With [workspace] only the
+	 * entries of that workspace are returned (same comparison as the webview's own list); without
+	 * it the global history across all workspaces is served.
+	 */
+	fun getTasks(workspace: String? = null): List<RemoteTaskInfo> {
+		val path = if (!workspace.isNullOrBlank()) "api/tasks?workspace=" + URLEncoder.encode(workspace, Charsets.UTF_8) else "api/tasks"
+		return get(path, TasksResponse.serializer()).tasks
+	}
+
+	/**
+	 * `POST /api/task/start` — starts a new session with [text] (`createTask`, evicts the current
+	 * task like the webview's "new chat"). Returns the fresh [RemoteStatus], or null on fallback.
+	 */
+	fun startTask(text: String): RemoteStatus? = postAction("api/task/start", TaskStartCommand(text), TaskStartCommand.serializer())
+
+	/**
+	 * `POST /api/task/open` — restores an older session from history by [taskId] (`showTaskWithId`).
+	 * Returns the fresh [RemoteStatus], or null on fallback.
+	 */
+	fun openTask(taskId: String): RemoteStatus? = postAction("api/task/open", TaskOpenCommand(taskId), TaskOpenCommand.serializer())
+
+	/** `POST /api/task/cancel` — stops the current task (`cancelTask`, same path as the webview). */
+	fun cancelTask(): RemoteStatus? {
+		val payload = "{}".toRequestBody("application/json".toMediaType())
+		val request = Request.Builder()
+			.url("$baseUrl/api/task/cancel")
+			.header("Authorization", "Bearer $token")
+			.post(payload)
+			.build()
+		client.newCall(request).execute().use { res ->
+			val responseBody = res.body?.string().orEmpty()
+			if (!res.isSuccessful) {
+				throw ZooApiException("HTTP ${res.code} von /api/task/cancel", res.code, responseBody.take(300))
+			}
+			return if (responseBody.contains("\"task\"")) json.decodeFromString(RemoteStatus.serializer(), responseBody) else null
+		}
+	}
+
+	/** `GET /api/workspaces` — recently used workspaces, newest first (max 10 entries). */
+	fun getWorkspaces(): List<WorkspaceInfo> = get("api/workspaces", WorkspacesResponse.serializer()).workspaces
+
+	/** `POST /api/workspace/open` — opens [workspacePath] in a new VS Code window (`code <path>`). */
+	fun openWorkspace(workspacePath: String) {
+		val result = post(
+			"api/workspace/open",
+			WorkspaceOpenCommand(workspacePath),
+			WorkspaceOpenCommand.serializer(),
+			OkResult.serializer(),
+		)
+		if (!result.ok && !result.error.isNullOrBlank()) throw ZooApiException(result.error.orEmpty(), body = result.error)
+	}
 
 	/**
 	 * Shared POST for action routes whose success body is the fresh [RemoteStatus] per contract.

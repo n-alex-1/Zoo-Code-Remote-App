@@ -12,6 +12,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -49,6 +50,9 @@ class StatusSocket(
 		fun onStatus(status: RemoteStatus) {}
 
 		fun onActivity(payload: RemoteActivityPayload) {}
+
+		/** Whole-feed replacement (session 9): the plugin switched to a different task. */
+		fun onActivitySnapshot(payloads: List<RemoteActivityPayload>) {}
 
 		/** Socket went down; a reconnect attempt is scheduled (unless terminal). */
 		fun onDisconnected(code: Int, reason: String) {}
@@ -175,6 +179,12 @@ class StatusSocket(
 			"message" -> frame.payload?.let { payload ->
 				runCatching { ZooApi.json.decodeFromJsonElement(RemoteActivityPayload.serializer(), payload) }
 					.onSuccess { listener?.onActivity(it) }
+			}
+
+			// Session 9: task switch in the plugin → replace the whole feed with this history.
+			"activity_snapshot" -> frame.payload?.let { payload ->
+				runCatching { ZooApi.json.decodeFromJsonElement(ListSerializer(RemoteActivityPayload.serializer()), payload) }
+					.onSuccess { listener?.onActivitySnapshot(it) }
 			}
 
 			else -> Unit // "ping", unknown future types — ignore.

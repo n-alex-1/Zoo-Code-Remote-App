@@ -41,7 +41,7 @@ class AskActionReceiver : BroadcastReceiver() {
 			try {
 				val settings = SettingsRepository(context.applicationContext).observe().first()
 				if (!settings.isValid()) {
-					errorText = "Keine gültigen Verbindungseinstellungen — bitte neu pairen."
+					errorText = "Keine gültige Verbindungseinstellung — bitte neu pairen."
 				} else {
 					val client = TlsTrust.client(settings.certFingerprint)
 					val api = ZooApi(client, settings.baseUrl(), settings.token)
@@ -49,14 +49,20 @@ class AskActionReceiver : BroadcastReceiver() {
 					ok = true
 				}
 			} catch (e: ZooApiException) {
-				errorText = when (e.httpCode) {
-					409 -> "Anfrage bereits beantwortet."
-					401 -> "Falscher Token — bitte neu pairen."
-					else -> e.message ?: "HTTP-Fehler"
-				}
-				// Session 8b: the next time the user opens the app they land on setup with this message.
-				if (e.httpCode == 401) {
-					(context.applicationContext as ZooRemoteApp).connectionRepository.reportAuthFailure(errorText.orEmpty())
+				// Session 9 fix: a 409 means the ask was already answered (e.g. in VS Code or from
+				// another notification tap) — the ask is gone, so treat it as success and clear the
+				// notification instead of showing an error.
+				if (e.httpCode == 409) {
+					ok = true
+				} else {
+					errorText = when (e.httpCode) {
+						401 -> "Falscher Token — bitte neu pairen."
+						else -> e.message ?: "HTTP-Fehler"
+					}
+					// Session 8b: the next time the user opens the app they land on setup with this message.
+					if (e.httpCode == 401) {
+						(context.applicationContext as ZooRemoteApp).connectionRepository.reportAuthFailure(errorText.orEmpty())
+					}
 				}
 			} catch (e: Exception) {
 				errorText = e.message ?: e::class.java.simpleName
