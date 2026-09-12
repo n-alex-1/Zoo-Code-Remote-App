@@ -29,9 +29,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 /**
  * Session 4 setup screen: host, port, token, certificate fingerprint and a "Verbinden"
  * button that runs `GET /api/health` + `GET /api/status` against the pinned server.
+ *
+ * Session 8b: [authError] surfaces a REST-level auth failure (HTTP 401) from another screen —
+ * the user landed here because re-pairing is required; it stays visible until "Verbinden" is
+ * pressed again and either succeeds or fails with its own message.
  */
 @Composable
-fun SetupScreen(onSuccess: () -> Unit, viewModel: SetupViewModel = viewModel()) {
+fun SetupScreen(
+	authError: String? = null,
+	onSuccess: () -> Unit,
+	viewModel: SetupViewModel = viewModel(),
+) {
 	val host by viewModel.host.collectAsState()
 	val portText by viewModel.portText.collectAsState()
 	val token by viewModel.token.collectAsState()
@@ -102,7 +110,11 @@ fun SetupScreen(onSuccess: () -> Unit, viewModel: SetupViewModel = viewModel()) 
 
 			is SetupPhase.Success -> ResultCard(green = true, text = p.statusLine)
 			is SetupPhase.Failure -> ResultCard(green = false, text = p.message)
-			SetupPhase.Idle -> Unit
+
+			// Session 8b: landed here via a REST-level auth failure (HTTP 401 / wrong token).
+			SetupPhase.Idle -> if (!authError.isNullOrBlank()) {
+				ResultCard(green = false, text = authError)
+			}
 		}
 
 		Button(

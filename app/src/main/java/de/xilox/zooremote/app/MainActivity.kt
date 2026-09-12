@@ -16,7 +16,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
 private fun ZooRemoteNavHost(
 	settingsRepository: SettingsRepository,
 	activity: ComponentActivity,
+	app: ZooRemoteApp = (activity.applicationContext as ZooRemoteApp),
 	navController: NavHostController = rememberNavController(),
 ) {
 	// Wait for the DataStore's first emission (always available immediately) to decide the start
@@ -79,10 +82,22 @@ private fun ZooRemoteNavHost(
 	}
 	RequestNotificationPermissionIfNeeded(activity, savedSettings!!.isValid())
 
+	// Session 8b: a REST-level auth failure (HTTP 401 / wrong token) sends the user back to the
+	// setup screen with the error message — retrying any action cannot succeed until re-pairing.
+	val authError by app.connectionRepository.authError.collectAsState()
+	val backStackEntry by navController.currentBackStackEntryAsState()
+	LaunchedEffect(authError, backStackEntry?.destination?.route) {
+		if (authError != null && backStackEntry?.destination?.route != "setup") {
+			navController.navigate("setup") { popUpTo(navController.graph.startDestinationId) }
+		}
+	}
+
 	NavHost(navController = navController, startDestination = startDestination) {
 		composable("setup") {
 			SetupScreen(
+				authError = authError,
 				onSuccess = {
+					app.connectionRepository.clearAuthError()
 					navController.navigate("status") { popUpTo("setup") { inclusive = true } }
 				},
 			)

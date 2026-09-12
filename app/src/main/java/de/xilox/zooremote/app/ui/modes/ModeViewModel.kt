@@ -73,10 +73,12 @@ class ModeViewModel(application: Application) : AndroidViewModel(application) {
 				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
 				modesFlow.value = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token).getModes().modes
 			} catch (e: ZooApiException) {
-				loadErrorFlow.value = when (e.httpCode) {
+				val message = when (e.httpCode) {
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Modi konnten nicht geladen werden"
 				}
+				loadErrorFlow.value = message
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				loadErrorFlow.value = e.message ?: e::class.java.simpleName
 			} finally {
@@ -102,10 +104,12 @@ class ModeViewModel(application: Application) : AndroidViewModel(application) {
 				val fresh = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token).setMode(slug)
 				fresh?.let { repository.adoptStatus(it) }
 			} catch (e: ZooApiException) {
-				failAction(when (e.httpCode) {
+				val message = when (e.httpCode) {
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Moduswechsel fehlgeschlagen"
-				})
+				}
+				failAction(message)
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				failAction(e.message ?: e::class.java.simpleName)
 			} finally {

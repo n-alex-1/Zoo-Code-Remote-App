@@ -54,6 +54,10 @@ class AskActionReceiver : BroadcastReceiver() {
 					401 -> "Falscher Token — bitte neu pairen."
 					else -> e.message ?: "HTTP-Fehler"
 				}
+				// Session 8b: the next time the user opens the app they land on setup with this message.
+				if (e.httpCode == 401) {
+					(context.applicationContext as ZooRemoteApp).connectionRepository.reportAuthFailure(errorText.orEmpty())
+				}
 			} catch (e: Exception) {
 				errorText = e.message ?: e::class.java.simpleName
 			}

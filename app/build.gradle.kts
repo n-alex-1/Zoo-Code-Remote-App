@@ -13,8 +13,8 @@ android {
 		applicationId = "de.xilox.zooremote.app"
 		minSdk = 26
 		targetSdk = 34
-		versionCode = 1
-		versionName = "0.4.0-session7"
+		versionCode = 2
+		versionName = "0.5.0-session8b"
 	}
 
 	buildTypes {

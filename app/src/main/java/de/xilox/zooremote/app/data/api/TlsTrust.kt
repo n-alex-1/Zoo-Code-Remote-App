@@ -66,6 +66,10 @@ object TlsTrust {
 			.hostnameVerifier(hostnameVerifier(expected)) // SAN/CN check against the (pinned) peer cert
 			.connectTimeout(connectTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
 			.readTimeout(readTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+			// Session 8b: protocol-level keepalive every 30 s (matches the server's WS ping interval).
+			// OkHttp answers pongs automatically; no WakeLock is held — the foreground service keeps
+			// the process alive instead.
+			.pingInterval(30, java.util.concurrent.TimeUnit.SECONDS)
 			.build()
 	}
 

@@ -53,6 +53,21 @@ class ConnectionRepository(context: Context) {
 	/** Activity feed; entries with the same [RemoteActivityPayload.ts] replace each other (streaming). */
 	val activity: StateFlow<List<ActivityItem>> = _activity.asStateFlow()
 
+	// Session 8b: last REST-level auth failure (HTTP 401 / wrong token). While non-null the UI is
+	// expected to show the setup screen with this message; cleared on a successful connection test.
+	private val _authError = MutableStateFlow<String?>(null)
+	val authError: StateFlow<String?> = _authError.asStateFlow()
+
+	fun clearAuthError() {
+		_authError.value = null
+	}
+
+	/** Stops any socket/reconnect loop and flags the setup screen with [message] (session 8b). */
+	fun reportAuthFailure(message: String) {
+		disconnect()
+		_authError.value = message
+	}
+
 	@Volatile
 	private var socket: StatusSocket? = null
 

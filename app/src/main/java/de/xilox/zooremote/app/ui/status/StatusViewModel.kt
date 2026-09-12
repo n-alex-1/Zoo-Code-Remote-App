@@ -103,10 +103,12 @@ class StatusViewModel(application: Application) : AndroidViewModel(application) 
 			try {
 				repository.refreshStatus()
 			} catch (e: ZooApiException) {
-				failAction(when (e.httpCode) {
+				val message = when (e.httpCode) {
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Aktualisierung fehlgeschlagen"
-				})
+				}
+				failAction(message)
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				failAction(e.message ?: e::class.java.simpleName)
 			} finally {
@@ -126,11 +128,13 @@ class StatusViewModel(application: Application) : AndroidViewModel(application) 
 				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
 				call(ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token))
 			} catch (e: ZooApiException) {
-				failAction(when (e.httpCode) {
+				val message = when (e.httpCode) {
 					409 -> "Anfrage bereits beantwortet — Status wird neu geladen."
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Aktion fehlgeschlagen"
-				})
+				}
+				failAction(message)
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				failAction(e.message ?: e::class.java.simpleName)
 			} finally {

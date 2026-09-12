@@ -88,10 +88,12 @@ class ModelViewModel(application: Application) : AndroidViewModel(application) {
 				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
 				profilesFlow.value = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token).getModels().profiles
 			} catch (e: ZooApiException) {
-				loadErrorFlow.value = when (e.httpCode) {
+				val message = when (e.httpCode) {
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Profile konnten nicht geladen werden"
 				}
+				loadErrorFlow.value = message
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				loadErrorFlow.value = e.message ?: e::class.java.simpleName
 			} finally {
@@ -117,10 +119,12 @@ class ModelViewModel(application: Application) : AndroidViewModel(application) {
 				val fresh = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token).setModel(profile.id)
 				fresh?.let { repository.adoptStatus(it) }
 			} catch (e: ZooApiException) {
-				failAction(when (e.httpCode) {
+				val message = when (e.httpCode) {
 					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
 					else -> e.message ?: "Profilwechsel fehlgeschlagen"
-				})
+				}
+				failAction(message)
+				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
 				failAction(e.message ?: e::class.java.simpleName)
 			} finally {
