@@ -39,6 +39,9 @@ object TlsTrust {
 			.digest(cert.encoded)
 			.joinToString("") { "%02x".format(it) }
 
+	/** SHA-256 of [cert] in the colon-separated format printed by the plugin (for display/comparison). */
+	fun formatForDisplay(cert: X509Certificate): String = fingerprintOf(cert).chunked(2).joinToString(":")
+
 	/** True iff [raw] (normalized) equals the SHA-256 fingerprint of [cert]. Constant-time compare. */
 	fun matches(raw: String, cert: X509Certificate): Boolean = constantTimeEquals(normalizeFingerprint(raw), fingerprintOf(cert))
 
@@ -103,6 +106,47 @@ object TlsTrust {
 		val ctx = SSLContext.getInstance("TLS") // "TLS" selects the highest available protocol (>= 1.2 on API 26+)
 		ctx.init(null, arrayOf(pinningTrustManager(platform, expectedFingerprint)), SecureRandom())
 		return ctx
+	}
+
+	/**
+	 * Client for the one-shot pairing call (`POST /api/pair`). Trusts ANY server certificate
+	 * (TOFU — trust on first use): at pairing time the app does not know the fingerprint yet,
+	 * that is exactly what is being fetched. The leaf certificate presented during the TLS
+	 * handshake is handed to [onPeerCertificate] so the UI can display it for visual comparison
+	 * with the value shown in VS Code (Settings → Remote Control). Hostname verification is
+	 * relaxed for the same reason as with pinning (self-signed SANs cover localhost only,
+	 * phones connect via LAN IP).
+	 */
+	fun pairingClient(
+		onPeerCertificate: (X509Certificate) -> Unit,
+		connectTimeoutMs: Long = 10_000L,
+		readTimeoutMs: Long = 30_000L,
+	): OkHttpClient {
+		val trustAny = object : X509TrustManager {
+			override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+			override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+			override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+		}
+		val ctx = SSLContext.getInstance("TLS")
+		ctx.init(null, arrayOf(trustAny), SecureRandom())
+
+		return OkHttpClient.Builder()
+			.sslSocketFactory(ctx.socketFactory, trustAny)
+			.hostnameVerifier { _, _ -> true }
+			.connectTimeout(connectTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+			.readTimeout(readTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+			.addInterceptor { chain ->
+				val response = chain.proceed(chain.request())
+				try {
+					// `handshake` is only available on TLS connections; the leaf cert is index 0.
+					val peer = response.handshake?.peerCertificates?.firstOrNull() as? X509Certificate
+					if (peer != null) onPeerCertificate(peer)
+				} catch (_: Exception) {
+					// Non-TLS or missing handshake info — pairing still works, UI just has no cert to show.
+				}
+				return@addInterceptor response
+			}
+			.build()
 	}
 
 	/**

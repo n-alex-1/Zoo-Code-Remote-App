@@ -62,8 +62,36 @@ class ZooApi(
 	@Serializable
 	private data class OkResult(val ok: Boolean = false, val error: String? = null)
 
+	/** Response of `POST /api/pair` (session 9b): the credentials to store after pairing. */
+	@Serializable
+	data class PairResponse(
+		val token: String? = null,
+		val fingerprint: String? = null,
+	)
+
 	/** `GET /api/health` — unauthenticated per contract (token header is sent anyway; harmless). */
 	fun health(): HealthResponse = get("api/health", HealthResponse.serializer())
+
+	/**
+	 * `POST /api/pair` — consumes the plugin's open one-shot pairing window and returns the
+	 * current token + certificate fingerprint. Unauthenticated by design (the app does not know
+	 * the token yet), so callers should use a TOFU client ([TlsTrust.pairingClient]). Throws
+	 * [ZooApiException] with httpCode 409 for `no_pairing_window` / `already_paired`.
+	 */
+	fun pair(): PairResponse {
+		val payload = "{}".toRequestBody("application/json".toMediaType())
+		val request = Request.Builder()
+			.url("$baseUrl/api/pair")
+			.post(payload)
+			.build()
+		client.newCall(request).execute().use { res ->
+			val body = res.body?.string().orEmpty()
+			if (!res.isSuccessful) {
+				throw ZooApiException("HTTP ${res.code} von /api/pair", res.code, body.take(300))
+			}
+			return json.decodeFromString(PairResponse.serializer(), body)
+		}
+	}
 
 	/** `GET /api/status` — bearer token required. */
 	fun status(): RemoteStatus = get("api/status", RemoteStatus.serializer())
