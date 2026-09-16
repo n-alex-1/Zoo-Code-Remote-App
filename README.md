@@ -1,74 +1,72 @@
-# Zoo Remote — Android-App
+# Zoo Remote — Android App
 
-Native Companion-App für den **Zoo Code Remote Control**-Server (VS-Code-Extension). Zeigt den Live-Status laufender Tasks, streamt die Aktivität in einen Chat-Feed und erlaubt Antworten auf Asks sowie Modus-/Modellwechsel — auch mit geschlossener App per Foreground Service + Notifications.
+Native companion app for the **Zoo Code Remote Control** server (VS Code extension). Shows live task status, streams activity into a chat feed, and lets you answer asks or switch mode/model — even with the app closed, via foreground service + notifications.
+
+UI language follows the device locale: English by default, German included (`values-de/`).
 
 ## Features
 
-- **Live-Status-Screen:** Verbindungsanzeige (grün/gelb/rot), Chips für aktuellen Modus, Modell-Profil und Context-Fenster-Auslastung; Chat-artiger Aktivitätsfeed mit Reasoning (einklappbar), Werkzeug-/Befehlszeilen, Fehlern und Completion-Ergebnissen.
-- **Ask-Bearbeitung:** Bestätigungs-Asks per „Genehmigen"/„Ablehnen", Freitext-Antworten und Follow-up-Suggestions direkt aus der App — derselbe Code-Pfad wie die Webview (`yesButtonClicked`/`noButtonClicked`/`messageResponse`).
-- **Notifications:** Persistente Verbindungs-Nachricht (Foreground Service, `dataSync`) + „Eingabe erforderlich"-Notification mit Actions für Approve/Deny — funktioniert auch bei geschlossener App. Android 13+ fragt die Notification-Berechtigung einmalig ab.
-- **Modus-/Modellwechsel:** Picker-Screens (`GET /api/modes`, `GET /api/models`), optimistische UI mit Rollback, frischer Server-Status wird sofort übernommen.
-- **Robuste Verbindung:** TLS-Fingerprint-Pinning (SHA-256), Reconnect mit exponentiellem Backoff (1 s → 30 s), Pull-to-refresh als HTTP-Fallback (`GET /api/status`), klare deutsche Fehlermeldungen für Timeout, falschen Fingerprint und falsches Token (401 springt zurück zum Setup).
-- **Akku:** Kein WakeLock; OkHttp-Ping alle 30 s (protokolliertes Keepalive, Pong-Antwort automatisch) — das Foreground Service hält den Prozess am Leben.
+- **Live status screen:** connection indicator (green/yellow/red), chips for current mode, model profile and context-window usage; chat-style activity feed with collapsible reasoning, tool/command lines, errors and completion results.
+- **Ask handling:** confirmation asks via "Approve"/"Deny", free-text answers and follow-up suggestions right from the app — same code path as the webview (`yesButtonClicked`/`noButtonClicked`/`messageResponse`).
+- **Notifications:** persistent connection notification (foreground service, `dataSync`) + "Input required" notification with Approve/Deny actions — works while the app is closed. Android 13+ asks for the notification permission once.
+- **Session picker:** task history per workspace (`GET /api/tasks?workspace=`), restore/open/cancel tasks, recently used workspaces openable in a new VS Code window; start new sessions with free text.
+- **Mode/model switching:** picker screens (`GET /api/modes`, `GET /api/models`), optimistic UI with rollback, fresh server status adopted immediately.
+- **Robust connection:** TLS fingerprint pinning (SHA-256), one-tap pairing against the plugin's 120 s window, reconnect with exponential backoff (1 s → 30 s), pull-to-refresh as HTTP fallback (`GET /api/status`), clear localized error messages for timeout, wrong fingerprint and wrong token (401 jumps back to setup).
+- **Battery:** no WakeLock; OkHttp ping every 30 s (logged keepalive, pong answered automatically) — the foreground service keeps the process alive.
 
-## Voraussetzungen
+## Prerequisites
 
-- Android 8.0+ (API 26), getestet mit targetSdk 34.
-- VS-Code mit dem Zoo-Code-Fork inkl. Remote-Control-Server aktiviert (Branch `feature/remote-control`).
-- Rechner und Handy im **gleichen LAN** (oder Emulator, siehe unten).
+- Android 8.0+ (API 26), tested with targetSdk 34.
+- VS Code running the Zoo Code fork **with the remote control server enabled** (branch `feature/remote-control`).
+- Computer and phone on the **same LAN** (or emulator, see below).
 
-## Pairing-Anleitung
+## Pairing guide
 
-1. **Server starten:** In VS-Code Einstellungen → „Remote Control" aktivieren (Port standardmäßig `8999`). Der Server startet nicht-blockierend; der OutputChannel **„Zoo Remote"** zeigt:
-   - die erreichbare LAN-IP + Port,
-   - den **SHA-256-Fingerprint** des selbstsignierten Zertifikats (hex, mit Doppelpunkten),
-   - Hinweise bei Port-Konflikten oder Zertifikat-Regeneration.
-2. **Token ablesen:** VS-Code-Einstellungen → „Remote Control" → Token (oder ebenfalls im OutputChannel).
-3. **App öffnen:** Setup-Screen erscheint automatisch, wenn noch keine Einstellungen gespeichert sind. Eintragen:
-   - **Host / IP:** LAN-IP des Rechners (Emulator: `10.0.2.2`),
-   - **Port:** `8999` (oder der konfigurierte Port),
-   - **Token:** aus Schritt 2,
-   - **Zertifikats-Fingerprint:** aus Schritt 1.
-4. **„Verbinden" tippen.** Erfolg → grüner Status mit aktuellem Modus/Modell und automatischer Navigation auf den Status-Screen. Fehlermeldungen sind direkt im Screen eingeblendet (Timeout, Fingerprint-Mismatch mit erwartet/vorgefunden, 401).
-5. **Android 13+:** Notification-Berechtigung erlauben, damit Ask-Notifications erscheinen.
+1. **Start the server:** in VS Code Settings → "Remote Control" enable it (port defaults to `8999`). The server starts non-blocking; the **"Zoo Remote"** output channel shows:
+   - the reachable LAN IP + port,
+   - the **SHA-256 fingerprint** of the self-signed certificate (hex, colon-separated),
+   - hints on port conflicts or certificate regeneration.
+2. **One-tap pairing:** in VS Code Settings → "Remote Control" press **"Start pairing"** — a one-shot window opens for 120 s. In the app enter only **Host/IP + Port** and tap **"Pairing"**: token and fingerprint are fetched from `POST /api/pair` automatically (TOFU TLS, then verified with pinning). The manual fields remain in the "Manual input (expert)" section for re-pairing after a reset or older plugin versions.
+3. **Success →** green status line with current mode/model + automatic navigation to the status screen. Failures are shown inline (timeout with live attempt counter, fingerprint mismatch incl. expected/presented values, 401).
+4. **Android 13+:** allow the notification permission so ask notifications appear.
 
-### Emulator-Hinweis
+### Emulator note
 
-Der Android-Emulator erreicht den Host-Rechner über `10.0.2.2` (NAT), nicht über `localhost`. Ein echtes Gerät braucht die LAN-IP des Rechners — und der Rechner muss für das Gerät erreichbar sein (Portfreigabe, s. u.).
+The Android emulator reaches the host machine via `10.0.2.2` (NAT), not `localhost`. A real device needs the computer's LAN IP — and the computer must be reachable from the device (port forwarding, see below).
 
-## Portfreigabe / Router
+## Port forwarding / router
 
-- Der Remote-Server lauscht standardmäßig auf **TCP 8999**. Damit ein Handy im WLAN den Rechner erreicht, muss die Firewall/der Router diesen Port zulassen:
-  - **Windows-Firewall:** Ausnahmeregel für `node.exe` (oder TCP-Eingangsregel 8999) — am einfachsten für das private Netzwerk.
-  - **Router mit Client-Isolation** („AP Isolation"): deaktivieren, sonst sehen sich Geräte im WLAN nicht gegenseitig.
-  - **Verschiedene Subnetze/VLANs:** statische Route oder Port-Forwarding auf den Rechner einrichten.
-- Schnelltest vom Handy: Browser öffnen → `https://<LAN-IP>:8999/api/health` → erwartet `{"ok":true}` (Zertifikatswarnung ist normal, es geht hier nur um Erreichbarkeit).
-- Läuft der Server auf einem anderen Port: in VS-Code „Remote Control" ändern und denselben Port in App + Firewall verwenden.
+- The remote server listens on **TCP 8999** by default. For a phone on Wi-Fi to reach the computer, firewall/router must allow that port:
+  - **Windows Firewall:** exception for `node.exe` (or an inbound TCP rule for 8999) — easiest for the private network profile.
+  - **Router with client isolation** ("AP Isolation"): disable it, otherwise Wi-Fi devices can't see each other.
+  - **Different subnets/VLANs:** set up a static route or port forwarding to the computer.
+- Quick test from the phone: open `https://<LAN-IP>:8999/api/health` in a browser → expect `{"ok":true}` (the certificate warning is normal — this only checks reachability).
+- Running on another port? Change it under VS Code "Remote Control" and use the same port in app + firewall.
 
-## Sicherheitshinweise
+## Security notes
 
-- **Token geheim halten:** Der Bearer-Token erlaubt vollen Zugriff (Status lesen, Asks beantworten, Modus/Modell wechseln). Er wird im OutputChannel und in den Einstellungen angezeigt — wie ein Passwort behandeln; bei Verlust neu generieren (App dann neu pairen).
-- **Self-signed Zertifikat + Pinning:** Die App vertraut exakt dem einen Zertifikat, dessen Fingerprint beim Pairing eingegeben wurde (SHA-256 über das Leaf-Zertifikat, constant-time Vergleich). Ein Man-in-the-Middle mit gültigem öffentlichem Zertifikat scheitert trotzdem, weil der Fingerprint abweicht. **Dafür:** Hostname-Check ist bewusst entspannt (das Zertifikat trägt nur `localhost`/`127.0.0.1` als SAN; die Identität kommt aus dem Pin) — dokumentierter Trade-off.
-- **Zertifikat geändert?** → App meldet „Zertifikat geändert — neu pairen?" und erwartet den neuen Fingerprint aus dem OutputChannel (passiert z. B. nach Neugenerierung oder Zertifikat-Reparatur).
-- **Kein öffentliches Netz ohne VPN:** Die Verbindung läuft über TLS 1.2+ mit Pinning, aber für unterwegs wird ein VPN empfohlen — besonders weil der Token im Klartext als Header übertragen wird und die App das Zertifikat nur per Fingerprint (nicht per CA) verifiziert.
-- **IP-Allowlist optional:** Der Server unterstützt `zoo-code.remote.allowedIps` (leer = alle IPs erlaubt). Für langlaufende Server im geteilten Netz sinnvoll: nur die IP des Handys eintragen.
+- **Keep the token secret:** the bearer token grants full access (read status, answer asks, switch mode/model). It is shown in the output channel and settings — treat it like a password; regenerate on loss (then re-pair the app).
+- **Self-signed certificate + pinning:** the app trusts exactly the one certificate whose fingerprint was captured during pairing (SHA-256 over the leaf cert, constant-time compare). A man-in-the-middle with a valid public cert still fails because its fingerprint differs. **Trade-off:** the hostname check is deliberately relaxed (the cert only carries `localhost`/`127.0.0.1` SANs; identity comes from the pin) — documented in code.
+- **Certificate changed?** → the app reports "Certificate changed — re-pair?" and expects the new fingerprint from the output channel (e.g. after regeneration or a certificate repair).
+- **No public internet without VPN:** the connection runs over TLS 1.2+ with pinning, but for on-the-go use a VPN is recommended — especially since the token travels as a header and the app verifies the cert by fingerprint only (not via CA).
+- **Optional IP allowlist:** the server supports `zoo-code.remote.allowedIps` (empty = all IPs allowed). For long-running servers on shared networks, whitelist just your phone's IP.
 
-## Build & Tests
+## Build & tests
 
 ```bat
 cd app
 gradlew.bat assembleDebug    :: APK → app\build\outputs\apk\debug\
-gradlew.bat test             :: JVM-Unit-Tests (API-Parsing)
+gradlew.bat test             :: JVM unit tests (API parsing)
 ```
 
-Versionskatalog in `gradle/libs.versions.toml`; `versionName` wird pro Session gebumpt (`0.x.y-sessionN`).
+Version catalog in `gradle/libs.versions.toml`; `versionName` is bumped per session (`0.x.y-sessionN`).
 
-## Fehlerfall-Übersicht (App-Seite)
+## Error cases (app side)
 
-| Fall | Verhalten |
-|------|-----------|
-| Host unerreichbar / Timeout (10 s) | „Zeitüberschreitung nach 10 s … Firewall/Portfreigabe prüfen." bzw. „Host unerreichbar" mit Emulator-Hinweis |
-| Falscher Fingerprint | „Zertifikat geändert - neu pairen?" mit erwartetem und vorgefundenen Fingerprint |
-| Falsches Token (HTTP 401) | Meldung im Screen; bei Aktion auf Status/Modus/Modell springt die App zurück zum Setup **mit** Fehlermeldung |
-| Server offline bei offenem Socket | Reconnect-Backoff 1 s → 30 s, Status „Verbinde…"; nach Neustart automatisch verbunden |
-| WS-Auth-Schließcode (4002/4003) | Terminaler Fehler: „Falscher Token (WS-Schließcode …)" — Re-Pairing nötig |
+| Case | Behavior |
+|------|----------|
+| Host unreachable / timeout (5 s connect, 10 s read) | "No response from host:port … check firewall/port forwarding" or "Host unreachable" with the emulator hint; live counter shows how long the attempt already takes |
+| Wrong fingerprint | "Certificate changed — re-pair?" with expected and presented fingerprint |
+| Wrong token (HTTP 401) | Message on screen; on actions from status/mode/model screens the app jumps back to setup **with** the error message |
+| Server offline while socket open | Reconnect backoff 1 s → 30 s, status "Connecting…"; auto-reconnects after server restart |
+| WS auth close code (4002/4003) | Terminal error: "Wrong token (WS close code …)" — re-pairing required |
