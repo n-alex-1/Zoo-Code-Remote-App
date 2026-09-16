@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 
 /**
  * Setup screen (session 9b: pairing-first).
@@ -70,7 +71,7 @@ fun SetupScreen(
 	) {
 		Text("Zoo Remote - Verbindung", style = MaterialTheme.typography.headlineSmall)
 		Text(
-			text = "In VS-Code: Einstellungen > \"Remote Control\" > \"Pairing starten\" (120 s). Dann hier Host/IP + Port eingeben und auf \"Pairing\" tippen. Emulator erreicht den Host ueber 10.0.2.2, ein echtes Gerat ueber die LAN-IP.",
+			text = "In VS-Code: Einstellungen > \"Remote Control\" > \"Pairing starten\" (Fenster bleibt 120 s offen). Dann hier Host/IP + Port eingeben und auf \"Pairing\" tippen - die App gibt nach max. ~40 s mit einer Fehlermeldung auf, in der Praxis dauert es nur Sekunden. Emulator erreicht den Host ueber 10.0.2.2, ein echtes Gerat ueber die LAN-IP.",
 			style = MaterialTheme.typography.bodySmall,
 		)
 
@@ -91,21 +92,40 @@ fun SetupScreen(
 			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
 			modifier = Modifier.fillMaxWidth(),
 		)
-
+	
+		// Session 9d: live feedback while connecting — show how long the attempt already takes
+		// instead of a bare "Verbinde..." spinner (firewall hangs used to look like an infinite wait).
+		var testSeconds by remember { mutableStateOf(0) }
+		LaunchedEffect(phase is SetupPhase.Testing) {
+			if (phase !is SetupPhase.Testing) return@LaunchedEffect
+			testSeconds = 0
+			while (true) {
+				delay(1_000)
+				testSeconds++
+			}
+		}
+	
 		Button(
 			onClick = { viewModel.startPairing() },
 			enabled = phase !is SetupPhase.Testing,
 			modifier = Modifier.fillMaxWidth(),
 		) {
-			Text(if (phase is SetupPhase.Testing) "Verbinde..." else "Pairing")
+			Text(if (phase is SetupPhase.Testing) "Verbinde... (${testSeconds} s)" else "Pairing")
 		}
-
+	
 		when (val p = phase) {
 			is SetupPhase.Testing -> Column(
 				horizontalAlignment = Alignment.CenterHorizontally,
 				modifier = Modifier.fillMaxWidth(),
-			) { CircularProgressIndicator() }
-
+			) {
+				CircularProgressIndicator()
+				Text(
+					text = "Bereits ${testSeconds} s im Versuch - bei Stille gibt die App nach max. ~40 s auf (Fehlermeldung). In der Praxis dauert Pairing nur Sekunden.",
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			}
+	
 			is SetupPhase.Success -> ResultCard(green = true, text = p.statusLine)
 			is SetupPhase.Failure -> ResultCard(green = false, text = p.message)
 

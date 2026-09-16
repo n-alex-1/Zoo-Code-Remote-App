@@ -4,3 +4,10 @@ local.properties
 .idea/
 *.iml
 .cxx/
+
+# Session debug artifacts (screen crops, logcat dumps, helper scripts) — not part of the app
+crop1.png
+crop2.png
+logcat-markdown.txt
+pixel-check.ps1
+ws-dump.mjs

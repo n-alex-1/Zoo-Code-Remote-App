@@ -83,9 +83,15 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 		_phase.value = SetupPhase.Testing
 		viewModelScope.launch(Dispatchers.IO) {
 			try {
-				val client = TlsTrust.pairingClient(onPeerCertificate = { cert ->
-					pairedFingerprint.value = TlsTrust.formatForDisplay(cert)
-				})
+				// Session 9d: short timeouts (5 s connect / 10 s read) so a firewall that swallows the
+				// request fails fast instead of leaving the user staring at a spinner for minutes.
+				val client = TlsTrust.pairingClient(
+					onPeerCertificate = { cert ->
+						pairedFingerprint.value = TlsTrust.formatForDisplay(cert)
+					},
+					connectTimeoutMs = 5_000L,
+					readTimeoutMs = 10_000L,
+				)
 				val api = ZooApi(client, "https://$h:$port", token = "")
 				val pairResult = api.pair()
 
@@ -110,8 +116,8 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 				})
 			} catch (_: UnknownHostException) {
 				fail("Host unerreichbar ($h). IP-Adresse und Portfreigabe im Router pruefen. Emulator: 10.0.2.2.")
-			} catch (e: SocketTimeoutException) {
-				fail("Zeitueberschreitung nach 10 s - Host $h:$port antwortet nicht. Firewall/Portfreigabe pruefen.")
+			} catch (_: SocketTimeoutException) {
+				fail(timeoutMessage(h, port))
 			} catch (_: ConnectException) {
 				fail("Verbindung abgelehnt von $h:$port - laeuft der Remote-Server (Einstellungen > Remote Control aktiv)?")
 			} catch (e: Exception) {
@@ -126,7 +132,7 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 		_phase.value = SetupPhase.Testing
 		viewModelScope.launch(Dispatchers.IO) {
 			try {
-				val client = TlsTrust.client(fp, connectTimeoutMs = 10_000L)
+				val client = TlsTrust.client(fp, connectTimeoutMs = 5_000L, readTimeoutMs = 10_000L)
 				val api = ZooApi(client, "https://$h:$port", t)
 
 				api.health() // unauthenticated liveness check first
@@ -151,8 +157,8 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 				})
 			} catch (_: UnknownHostException) {
 				fail("Host unerreichbar ($h). IP-Adresse und Portfreigabe im Router pruefen. Emulator: 10.0.2.2.")
-			} catch (e: SocketTimeoutException) {
-				fail("Zeitueberschreitung nach 10 s - Host $h:$port antwortet nicht. Firewall/Portfreigabe pruefen.")
+			} catch (_: SocketTimeoutException) {
+				fail(timeoutMessage(h, port))
 			} catch (_: ConnectException) {
 				fail("Verbindung abgelehnt von $h:$port - laeuft der Remote-Server (Einstellungen > Remote Control aktiv)?")
 			} catch (e: Exception) {
@@ -165,6 +171,10 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 	private fun fail(message: String) {
 		_phase.value = SetupPhase.Failure(message)
 	}
+
+	/** Session 9d: one timeout message for both connect (5 s) and read (10 s) timeouts. */
+	private fun timeoutMessage(h: String, port: Int): String =
+		"Keine Antwort von $h:$port (Timeout nach max. 10 s). Firewall/Portfreigabe pruefen."
 
 	private fun formatPercent(p: Double): String = "%.2f".format(p).replace('.', ',')
 }

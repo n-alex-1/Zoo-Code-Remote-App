@@ -566,16 +566,18 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Genehmigen") }
 					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Ablehnen") }
 				}
-			} else if (task != null) {
-				TaskStateBadge(task.state, modifier = Modifier.padding(bottom = 4.dp))
 			}
 
 			// Session 9: stop the current task at any time while it is running or waiting for input.
 			val canStop = !state.busy && task != null && (task.state == "running" || task.state == "waiting_for_input")
-			if (canStop) {
-				Row(modifier = Modifier.padding(bottom = 4.dp)) {
-					OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-						Text("Stopp", style = MaterialTheme.typography.labelMedium)
+			if (task != null) {
+				Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+					TaskStateBadge(task.state)
+					if (canStop) {
+						Spacer(Modifier.weight(1f))
+						OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+							Text("Stopp", style = MaterialTheme.typography.labelMedium)
+						}
 					}
 				}
 			}
