@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import de.xilox.zooremote.app.R
 import kotlinx.coroutines.launch
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -31,6 +32,12 @@ sealed interface SetupPhase {
 class SetupViewModel(application: Application) : AndroidViewModel(application) {
 
 	private val repository = SettingsRepository(application)
+
+	/** Locale-aware string lookup (setup errors are built on IO threads, not composables). */
+	private fun tr(@androidx.annotation.StringRes resId: Int, vararg args: Any): String {
+		val app = getApplication<Application>()
+		return if (args.isEmpty()) app.getString(resId) else app.getString(resId, *args)
+	}
 
 	val host = MutableStateFlow("")
 	val portText = MutableStateFlow("8999")
@@ -59,10 +66,10 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 		val t = token.value.trim()
 		val fp = fingerprint.value.trim()
 
-		if (h.isEmpty()) return fail("Host/IP fehlt.")
-		if (port == null || port !in 1024..65535) return fail("Port muss eine Zahl zwischen 1024 und 65535 sein.")
-		if (t.isEmpty()) return fail("Token fehlt - siehe VS-Code-Einstellungen \"Remote Control\" oder Button \"Pairing\".")
-		if (fp.replace(":", "").isEmpty()) return fail("Zertifikats-Fingerprint fehlt (wird beim Pairing automatisch uebernommen).")
+		if (h.isEmpty()) return fail(tr(R.string.err_host_missing))
+		if (port == null || port !in 1024..65535) return fail(tr(R.string.err_port_invalid))
+		if (t.isEmpty()) return fail(tr(R.string.err_token_missing))
+		if (fp.replace(":", "").isEmpty()) return fail(tr(R.string.err_fingerprint_missing))
 
 		connectAndSave(h, port, t, fp)
 	}
@@ -77,8 +84,8 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 		val h = host.value.trim()
 		val port = portText.value.toIntOrNull()
 
-		if (h.isEmpty()) return fail("Host/IP fehlt.")
-		if (port == null || port !in 1024..65535) return fail("Port muss eine Zahl zwischen 1024 und 65535 sein.")
+		if (h.isEmpty()) return fail(tr(R.string.err_host_missing))
+		if (port == null || port !in 1024..65535) return fail(tr(R.string.err_port_invalid))
 
 		_phase.value = SetupPhase.Testing
 		viewModelScope.launch(Dispatchers.IO) {
@@ -98,7 +105,7 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 				val t = pairResult.token.orEmpty().trim()
 				val fp = pairResult.fingerprint.orEmpty().trim()
 				if (t.isEmpty() || fp.replace(":", "").isEmpty()) {
-					return@launch fail("Pairing-Antwort unvollstaendig (Token oder Fingerprint fehlt).")
+					return@launch fail(tr(R.string.err_pair_incomplete))
 				}
 
 				// Fill the fields for transparency, then verify with pinning before saving.
@@ -107,22 +114,20 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 				connectAndSave(h, port, t, fp)
 			} catch (e: ZooApiException) {
 				fail(when {
-					e.httpCode == 409 && e.body.orEmpty().contains("already_paired") ->
-						"Bereits gepaart - in VS-Code unter Einstellungen > Remote Control auf \"Zuruecksetzen\" tippen, dann hier erneut \"Pairing\"."
-					e.httpCode == 409 && e.body.orEmpty().contains("no_pairing_window") ->
-						"Kein Pairing-Fenster offen (laeuft 120 s). In VS-Code unter Einstellungen > Remote Control auf \"Pairing starten\" tippen, dann hier erneut \"Pairing\"."
-					e.httpCode == 409 -> "Server: Pairing nicht moeglich (${e.body.orEmpty().take(120)})."
-					else -> "Server antwortete mit HTTP ${e.httpCode} - Details: ${e.body.orEmpty().take(200)}"
+					e.httpCode == 409 && e.body.orEmpty().contains("already_paired") -> tr(R.string.err_already_paired)
+					e.httpCode == 409 && e.body.orEmpty().contains("no_pairing_window") -> tr(R.string.err_no_pairing_window)
+					e.httpCode == 409 -> tr(R.string.err_pair_not_possible, e.body.orEmpty().take(120))
+					else -> tr(R.string.err_http, e.httpCode ?: 0, e.body.orEmpty().take(200))
 				})
 			} catch (_: UnknownHostException) {
-				fail("Host unerreichbar ($h). IP-Adresse und Portfreigabe im Router pruefen. Emulator: 10.0.2.2.")
+				fail(tr(R.string.err_host_unreachable, h))
 			} catch (_: SocketTimeoutException) {
 				fail(timeoutMessage(h, port))
 			} catch (_: ConnectException) {
-				fail("Verbindung abgelehnt von $h:$port - laeuft der Remote-Server (Einstellungen > Remote Control aktiv)?")
+				fail(tr(R.string.err_connection_refused, h, port.toString()))
 			} catch (e: Exception) {
 				val detail = e.message ?: e::class.java.simpleName
-				fail("Unerwarteter Fehler: $detail")
+				fail(tr(R.string.err_unexpected, detail))
 			}
 		}
 	}
@@ -140,30 +145,34 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 
 				repository.save(ConnectionSettings(host = h, port = port, token = t, certFingerprint = fp))
 
-				val line = buildString {
-					append("Verbunden. Modus: ${status.mode.label.ifEmpty { status.mode.current }} · Modell: ${status.model.describe()}")
-					status.task.contextWindow?.let { cw ->
-						if (cw.percent != null) append(" · Context ${formatPercent(cw.percent)}% (${cw.used}/${cw.limit ?: "?"})")
-						else if ((cw.limit ?: 0L) > 0) append(" · Context ${cw.used}/${cw.limit} Tokens")
-					}
-				}
+				val contextPart = status.task.contextWindow?.let { cw ->
+					if (cw.percent != null) tr(R.string.setup_context_percent, formatPercent(cw.percent), cw.used.toString(), (cw.limit ?: "?").toString())
+					else if ((cw.limit ?: 0L) > 0) tr(R.string.setup_context_tokens, cw.used.toString(), cw.limit.toString())
+					else ""
+				}.orEmpty()
+				val line = tr(
+					R.string.setup_success_line,
+					status.mode.label.ifEmpty { status.mode.current },
+					status.model.describe(),
+					contextPart,
+				)
 				_phase.value = SetupPhase.Success(line)
 			} catch (e: FingerprintMismatchException) {
-				fail("Zertifikat geaendert - neu pairen? Erwartet wurde ${TlsTrust.normalizeFingerprint(fp)}, der Server zeigt ${TlsTrust.normalizeFingerprint(e.actual)}. In VS-Code \"Pairing zuruecksetzen\" druecken.")
+				fail(tr(R.string.err_cert_changed_full, TlsTrust.normalizeFingerprint(fp), TlsTrust.normalizeFingerprint(e.actual)))
 			} catch (e: ZooApiException) {
 				fail(when (e.httpCode) {
-					401 -> "Falscher Token (HTTP 401). In VS-Code Einstellungen > Remote Control pruefen oder neu pairen."
-					else -> "Server antwortete mit HTTP ${e.httpCode} - Details: ${e.body.orEmpty().take(200)}"
+					401 -> tr(R.string.err_wrong_token)
+					else -> tr(R.string.err_http, e.httpCode ?: 0, e.body.orEmpty().take(200))
 				})
 			} catch (_: UnknownHostException) {
-				fail("Host unerreichbar ($h). IP-Adresse und Portfreigabe im Router pruefen. Emulator: 10.0.2.2.")
+				fail(tr(R.string.err_host_unreachable, h))
 			} catch (_: SocketTimeoutException) {
 				fail(timeoutMessage(h, port))
 			} catch (_: ConnectException) {
-				fail("Verbindung abgelehnt von $h:$port - laeuft der Remote-Server (Einstellungen > Remote Control aktiv)?")
+				fail(tr(R.string.err_connection_refused, h, port.toString()))
 			} catch (e: Exception) {
 				val detail = e.message ?: e::class.java.simpleName
-				fail("Unerwarteter Fehler: $detail")
+				fail(tr(R.string.err_unexpected, detail))
 			}
 		}
 	}
@@ -173,8 +182,7 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
 	}
 
 	/** Session 9d: one timeout message for both connect (5 s) and read (10 s) timeouts. */
-	private fun timeoutMessage(h: String, port: Int): String =
-		"Keine Antwort von $h:$port (Timeout nach max. 10 s). Firewall/Portfreigabe pruefen."
+	private fun timeoutMessage(h: String, port: Int): String = tr(R.string.err_timeout, h, port.toString())
 
 	private fun formatPercent(p: Double): String = "%.2f".format(p).replace('.', ',')
 }

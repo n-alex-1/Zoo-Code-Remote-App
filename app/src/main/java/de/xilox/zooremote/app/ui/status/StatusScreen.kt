@@ -1,5 +1,6 @@
 package de.xilox.zooremote.app.ui.status
 
+import android.content.Context
 import android.view.ContextThemeWrapper
 import android.widget.TextView
 import androidx.compose.foundation.background
@@ -55,17 +56,19 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.api.ActivityItem
 import de.xilox.zooremote.app.data.api.AskText
 import de.xilox.zooremote.app.data.api.RemoteSuggestion
@@ -147,12 +150,12 @@ private fun StatusTopBar(
 	onOpenSessions: () -> Unit = {},
 ) {
 	val (dotColor, dotLabel) = when (connectionState) {
-		is ConnectionState.Connected -> Color(0xFF2E7D32) to "Verbunden"
-		is ConnectionState.Connecting -> Color(0xFFF9A825) to "Verbinde…"
+		is ConnectionState.Connected -> Color(0xFF2E7D32) to stringResource(R.string.conn_connected)
+		is ConnectionState.Connecting -> Color(0xFFF9A825) to stringResource(R.string.conn_connecting)
 		else -> if (connectionState is ConnectionState.Error) {
-			Color(0xFFC62828) to "Fehler"
+			Color(0xFFC62828) to stringResource(R.string.conn_error)
 		} else {
-			Color(0xFFC62828) to "Getrennt"
+			Color(0xFFC62828) to stringResource(R.string.conn_disconnected)
 		}
 	}
 
@@ -179,7 +182,7 @@ private fun StatusTopBar(
 			// Session 9: sessions & settings icons — always reachable, also while connected.
 			Spacer(Modifier.width(8.dp))
 			TopBarIconButton(Icons.Filled.History, "Sessions", onClick = onOpenSessions)
-			TopBarIconButton(Icons.Filled.Settings, "Einstellungen", onClick = onOpenSettings)
+			TopBarIconButton(Icons.Filled.Settings, stringResource(R.string.icon_settings), onClick = onOpenSettings)
 		}
 	}
 }
@@ -246,8 +249,8 @@ private fun ConnectionBanner(connectionState: ConnectionState, onOpenSettings: (
 	if (connectionState is ConnectionState.Connected) return
 	val message = when (connectionState) {
 		is ConnectionState.Error -> connectionState.message
-		is ConnectionState.Connecting -> "Verbinde…"
-		else -> "Keine Verbindung."
+		is ConnectionState.Connecting -> stringResource(R.string.conn_connecting)
+		else -> stringResource(R.string.banner_no_connection)
 	}
 	Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
 		Row(
@@ -257,7 +260,7 @@ private fun ConnectionBanner(connectionState: ConnectionState, onOpenSettings: (
 		) {
 			Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
 			OutlinedButton(onClick = onOpenSettings, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-				Text("Zu den Einstellungen", style = MaterialTheme.typography.labelSmall)
+				Text(stringResource(R.string.btn_open_settings), style = MaterialTheme.typography.labelSmall)
 			}
 		}
 	}
@@ -297,7 +300,7 @@ private fun ActivityFeed(
 	if (items.isEmpty()) {
 		Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
 			Text(
-				text = if (neverConnected) "Noch nie verbunden — in VS-Code den Remote-Server starten und verbinden." else "Noch keine Aktivität — starte eine Task in VS-Code.",
+				text = if (neverConnected) stringResource(R.string.feed_empty_never_connected) else stringResource(R.string.feed_empty_no_activity),
 				style = MaterialTheme.typography.bodyMedium,
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.padding(horizontal = 24.dp),
@@ -334,10 +337,10 @@ private fun ActivityFeed(
 @Composable
 fun TaskStateBadge(state: String, modifier: Modifier = Modifier) {
 	val (color, label) = when (state) {
-		"running" -> Color(0xFFF9A825) to "Läuft…"
-		"waiting_for_input" -> Color(0xFF1565C0) to "Wartet auf Eingabe"
-		"completed" -> Color(0xFF2E7D32) to "Fertig"
-		"error" -> Color(0xFFC62828) to "Fehler"
+		"running" -> Color(0xFFF9A825) to stringResource(R.string.task_running)
+		"waiting_for_input" -> Color(0xFF1565C0) to stringResource(R.string.task_waiting)
+		"completed" -> Color(0xFF2E7D32) to stringResource(R.string.task_completed)
+		"error" -> Color(0xFFC62828) to stringResource(R.string.conn_error)
 		else -> MaterialTheme.colorScheme.onSurfaceVariant to "Idle"
 	}
 	Surface(color = color.copy(alpha = 0.15f), shape = CircleShape, modifier = modifier) {
@@ -375,10 +378,10 @@ private fun ReasoningRow(item: ActivityItem) {
 		// Session 8b UI fix: the whole row (chevron included) toggles expansion on tap.
 		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).clickable { expanded = !expanded }) {
 			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(if (streaming) "Thinking…" else "Gedanken", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+				Text(if (streaming) stringResource(R.string.reasoning_thinking) else stringResource(R.string.reasoning_done), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
 				Icon(
 					imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-					contentDescription = if (expanded) "Einklappen" else "Aufklappen",
+					contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
 					tint = MaterialTheme.colorScheme.onSurfaceVariant,
 					modifier = Modifier.size(18.dp),
 				)
@@ -396,7 +399,7 @@ private fun CompletionRow(item: ActivityItem) {
 	Column(modifier = Modifier.fillMaxWidth()) {
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
 			Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-			Text("Task Completed", style = MaterialTheme.typography.titleSmall)
+			Text(stringResource(R.string.completion_header), style = MaterialTheme.typography.titleSmall)
 		}
 		if (!item.text.isNullOrBlank()) {
 			MarkdownText(item.text.orEmpty(), modifier = Modifier.padding(top = 4.dp).fillMaxWidth())
@@ -420,15 +423,15 @@ private fun ToolRow(item: ActivityItem) {
 				tint = MaterialTheme.colorScheme.onSurfaceVariant,
 				modifier = Modifier.size(16.dp),
 			)
-			val label = shortToolLabel(item).let { if (it.length > 80) it.take(79) + "…" else it }
+			val label = shortToolLabel(item, LocalContext.current).let { if (it.length > 80) it.take(79) + "…" else it }
 			Text(label, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
 		}
 	}
 }
 
-private fun shortToolLabel(item: ActivityItem): String {
+private fun shortToolLabel(item: ActivityItem, context: Context): String {
 	val text = item.text?.trim().orEmpty()
-	if (text.isEmpty()) return if (item.category == "command") "Befehl" else "Werkzeug"
+	if (text.isEmpty()) return context.getString(if (item.category == "command") R.string.tool_label_command else R.string.tool_label_tool)
 	return text.lineSequence().firstOrNull { it.isNotBlank() } ?: item.category
 }
 
@@ -437,7 +440,7 @@ private fun ErrorRow(item: ActivityItem) {
 	Column(modifier = Modifier.fillMaxWidth()) {
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
 			Icon(Icons.Filled.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-			Text("Fehler", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+			Text(stringResource(R.string.conn_error), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
 		}
 		if (!item.text.isNullOrBlank()) {
 			Text(item.text.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 2.dp))
@@ -455,7 +458,7 @@ private fun AskRow(item: ActivityItem, onPickSuggestion: (RemoteSuggestion) -> U
 		modifier = Modifier.fillMaxWidth().alpha(if (answered) 0.65f else 1f),
 	) {
 		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-			Text("Eingabe erforderlich (${item.category})", style = MaterialTheme.typography.labelMedium, color = if (answered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer)
+			Text(stringResource(R.string.ask_header, item.category), style = MaterialTheme.typography.labelMedium, color = if (answered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer)
 			val question = askQuestionText(item)
 			if (!question.isNullOrBlank()) {
 				Text(question, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
@@ -563,8 +566,8 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 		Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
 			if (ask != null && ask.canApprove) {
 				Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
-					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Genehmigen") }
-					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text("Ablehnen") }
+					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_approve)) }
+					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_deny)) }
 				}
 			}
 
@@ -576,7 +579,7 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 					if (canStop) {
 						Spacer(Modifier.weight(1f))
 						OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-							Text("Stopp", style = MaterialTheme.typography.labelMedium)
+							Text(stringResource(R.string.btn_stop), style = MaterialTheme.typography.labelMedium)
 						}
 					}
 				}
@@ -589,9 +592,9 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 					placeholder = {
 						Text(
 							when {
-								ask != null && ask.expectsText -> "Antwort…"
-								task?.taskId != null -> "Nachricht an die Session…"
-								else -> "Neue Session starten…"
+								ask != null && ask.expectsText -> stringResource(R.string.input_placeholder_answer)
+								task?.taskId != null -> stringResource(R.string.input_placeholder_message)
+								else -> stringResource(R.string.input_placeholder_new_session)
 							}
 						)
 					},
@@ -609,7 +612,7 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 				if (state.busy) {
 					CircularProgressIndicator(modifier = Modifier.size(24.dp))
 				} else {
-					Button(onClick = { viewModel.sendText(input); input = "" }, enabled = canSend) { Text("Senden") }
+					Button(onClick = { viewModel.sendText(input); input = "" }, enabled = canSend) { Text(stringResource(R.string.btn_send)) }
 				}
 			}
 		}

@@ -36,8 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.api.ProfileInfo
 
 /**
@@ -65,7 +67,7 @@ fun ModelScreen(
 	}
 
 	Scaffold(
-		topBar = { TopAppBar(title = { Text("Modelle") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück") } }) },
+		topBar = { TopAppBar(title = { Text(stringResource(R.string.models_title)) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back)) } }) },
 		snackbarHost = { SnackbarHost(snackbarHostState) },
 	) { padding ->
 		when {
@@ -110,7 +112,7 @@ private fun ModelRow(
 			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 				Text(profile.name, style = MaterialTheme.typography.bodyLarge, color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
 				if (active) {
-					Icon(Icons.Filled.Check, contentDescription = "Aktiv", tint = if (busy) Color.Gray else MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+					Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.cd_active), tint = if (busy) Color.Gray else MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
 				} else if (busy) {
 					CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
 				}

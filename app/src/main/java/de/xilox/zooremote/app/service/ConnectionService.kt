@@ -73,7 +73,7 @@ class ConnectionService : Service() {
 		}
 
 		// Must happen promptly after onStartCommand — post the basic notification synchronously.
-		startForeground(NOTIFICATION_ID_CONNECTION, persistentNotification("verbunden"))
+		startForeground(NOTIFICATION_ID_CONNECTION, persistentNotification(getString(R.string.notif_connected)))
 
 		scope.launch {
 			// The service is authoritative for keeping a connection alive; only connect when none
@@ -100,13 +100,13 @@ class ConnectionService : Service() {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
 		val manager = getSystemService(NotificationManager::class.java)
 		manager.createNotificationChannel(
-			NotificationChannel(CHANNEL_CONNECTION, "Verbindung", NotificationManager.IMPORTANCE_LOW).apply {
-				description = "Persistenter Status der Zoo-Remote-Verbindung"
+			NotificationChannel(CHANNEL_CONNECTION, getString(R.string.channel_connection_name), NotificationManager.IMPORTANCE_LOW).apply {
+				description = getString(R.string.channel_connection_desc)
 			},
 		)
 		manager.createNotificationChannel(
-			NotificationChannel(CHANNEL_ASK, "Eingabe erforderlich", NotificationManager.IMPORTANCE_HIGH).apply {
-				description = "Zoo Code wartet auf eine Bestätigung oder Antwort"
+			NotificationChannel(CHANNEL_ASK, getString(R.string.channel_ask_name), NotificationManager.IMPORTANCE_HIGH).apply {
+				description = getString(R.string.channel_ask_desc)
 			},
 		)
 	}
@@ -118,7 +118,7 @@ class ConnectionService : Service() {
 		)
 		return NotificationCompat.Builder(this, CHANNEL_CONNECTION)
 			.setSmallIcon(R.drawable.ic_notification)
-			.setContentTitle("Zoo Remote")
+			.setContentTitle(getString(R.string.app_name))
 			.setContentText(text)
 			.setStyle(NotificationCompat.BigTextStyle().bigText(text))
 			.setContentIntent(contentIntent)
@@ -128,9 +128,9 @@ class ConnectionService : Service() {
 	}
 
 	private fun textFor(state: ConnectionState): String = when (state) {
-		is ConnectionState.Connected -> "verbunden"
-		is ConnectionState.Connecting -> "verbinde…"
-		is ConnectionState.Error -> "Fehler — ${state.message}"
-		else -> "getrennt"
+		is ConnectionState.Connected -> getString(R.string.notif_connected)
+		is ConnectionState.Connecting -> getString(R.string.notif_connecting)
+		is ConnectionState.Error -> getString(R.string.notif_error, state.message)
+		else -> getString(R.string.notif_disconnected)
 	}
 }

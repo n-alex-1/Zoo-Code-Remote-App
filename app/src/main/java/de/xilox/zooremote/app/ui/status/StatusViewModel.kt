@@ -10,6 +10,7 @@ import de.xilox.zooremote.app.data.api.RemoteStatus
 import de.xilox.zooremote.app.data.api.TlsTrust
 import de.xilox.zooremote.app.data.api.ZooApi
 import de.xilox.zooremote.app.data.api.ZooApiException
+import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.connection.ConnectionRepository
 import de.xilox.zooremote.app.data.connection.ConnectionState
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,9 @@ data class StatusUiState(
 class StatusViewModel(application: Application) : AndroidViewModel(application) {
 
 	private val repository: ConnectionRepository = ZooRemoteApp.from(application).connectionRepository
+
+	/** Locale-aware string lookup (errors are built on IO threads, not composables). */
+	private fun tr(@androidx.annotation.StringRes resId: Int): String = getApplication<Application>().getString(resId)
 
 	private val busyFlow = MutableStateFlow(false)
 	private val errorFlow = MutableStateFlow<String?>(null)
@@ -138,10 +142,7 @@ class StatusViewModel(application: Application) : AndroidViewModel(application) 
 			try {
 				repository.refreshStatus()
 			} catch (e: ZooApiException) {
-				val message = when (e.httpCode) {
-					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
-					else -> e.message ?: "Aktualisierung fehlgeschlagen"
-				}
+				val message = if (e.httpCode == 401) tr(R.string.err_wrong_token) else e.message ?: tr(R.string.err_refresh_failed)
 				failAction(message)
 				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
@@ -161,14 +162,14 @@ class StatusViewModel(application: Application) : AndroidViewModel(application) 
 			var httpCode: Int? = null
 			try {
 				val settings = repository.savedSettings()
-				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
+				if (!settings.isValid()) throw ZooApiException(tr(R.string.err_invalid_settings))
 				call(ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token))
 			} catch (e: ZooApiException) {
 				httpCode = e.httpCode
 				val message = when (e.httpCode) {
-					409 -> "Anfrage bereits beantwortet — Status wird neu geladen."
-					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
-					else -> e.message ?: "Aktion fehlgeschlagen"
+					409 -> tr(R.string.err_already_answered)
+					401 -> tr(R.string.err_wrong_token)
+					else -> e.message ?: tr(R.string.err_action_failed)
 				}
 				failAction(message)
 				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup

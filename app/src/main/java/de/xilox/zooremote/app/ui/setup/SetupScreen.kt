@@ -27,8 +27,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.xilox.zooremote.app.R
 import kotlinx.coroutines.delay
 
 /**
@@ -49,6 +52,7 @@ fun SetupScreen(
 	onSuccess: () -> Unit,
 	viewModel: SetupViewModel = viewModel(),
 ) {
+	val context = LocalContext.current
 	val host by viewModel.host.collectAsState()
 	val portText by viewModel.portText.collectAsState()
 	val token by viewModel.token.collectAsState()
@@ -69,9 +73,9 @@ fun SetupScreen(
 		verticalArrangement = Arrangement.spacedBy(16.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
-		Text("Zoo Remote - Verbindung", style = MaterialTheme.typography.headlineSmall)
+		Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineSmall)
 		Text(
-			text = "In VS-Code: Einstellungen > \"Remote Control\" > \"Pairing starten\" (Fenster bleibt 120 s offen). Dann hier Host/IP + Port eingeben und auf \"Pairing\" tippen - die App gibt nach max. ~40 s mit einer Fehlermeldung auf, in der Praxis dauert es nur Sekunden. Emulator erreicht den Host ueber 10.0.2.2, ein echtes Gerat ueber die LAN-IP.",
+			text = stringResource(R.string.setup_instructions),
 			style = MaterialTheme.typography.bodySmall,
 		)
 
@@ -110,7 +114,7 @@ fun SetupScreen(
 			enabled = phase !is SetupPhase.Testing,
 			modifier = Modifier.fillMaxWidth(),
 		) {
-			Text(if (phase is SetupPhase.Testing) "Verbinde... (${testSeconds} s)" else "Pairing")
+			Text(if (phase is SetupPhase.Testing) stringResource(R.string.setup_connecting, testSeconds) else "Pairing")
 		}
 	
 		when (val p = phase) {
@@ -120,7 +124,7 @@ fun SetupScreen(
 			) {
 				CircularProgressIndicator()
 				Text(
-					text = "Bereits ${testSeconds} s im Versuch - bei Stille gibt die App nach max. ~40 s auf (Fehlermeldung). In der Praxis dauert Pairing nur Sekunden.",
+					text = stringResource(R.string.setup_testing_hint, testSeconds),
 					style = MaterialTheme.typography.bodySmall,
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
@@ -137,9 +141,10 @@ fun SetupScreen(
 
 		// TOFU transparency: show what the server presented during pairing so it can be compared
 		// with the fingerprint printed in VS Code (Settings -> Remote Control / OutputChannel).
-		if (!pairedFingerprint.isNullOrEmpty() && phase !is SetupPhase.Success) {
+		val shownFingerprint = pairedFingerprint
+		if (!shownFingerprint.isNullOrEmpty() && phase !is SetupPhase.Success) {
 			Text(
-				text = "Server-Zertifikat beim Pairing: $pairedFingerprint",
+				text = stringResource(R.string.setup_pairing_cert, shownFingerprint),
 				style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
 				color = MaterialTheme.colorScheme.primary,
 			)
@@ -169,10 +174,10 @@ private fun ManualSection(
 	var expanded by remember { mutableStateOf(false) }
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-		Text("Manuelle Eingabe (Expert)", style = MaterialTheme.typography.titleSmall)
+		Text(stringResource(R.string.setup_manual_title), style = MaterialTheme.typography.titleSmall)
 		if (!expanded) {
 			OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-				Text("Aufklappen")
+				Text(stringResource(R.string.setup_expand))
 			}
 		} else {
 			Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -187,14 +192,14 @@ private fun ManualSection(
 				OutlinedTextField(
 					value = fingerprint,
 					onValueChange = onFingerprintChange,
-					label = { Text("Zertifikats-Fingerprint (SHA-256)") },
+					label = { Text(stringResource(R.string.label_fingerprint)) },
 					singleLine = true,
 					textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
 					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
 					modifier = Modifier.fillMaxWidth(),
 				)
 				Button(onClick = onConnect, enabled = !disabled, modifier = Modifier.fillMaxWidth()) {
-					Text("Verbinden")
+					Text(stringResource(R.string.btn_connect))
 				}
 			}
 		}

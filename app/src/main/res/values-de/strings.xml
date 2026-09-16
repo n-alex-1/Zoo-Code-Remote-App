@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deutsche Übersetzung (Default siehe values/strings.xml). -->
+<resources>
+	<string name="conn_connected">Verbunden</string>
+	<string name="conn_connecting">Verbinde…</string>
+	<string name="conn_error">Fehler</string>
+	<string name="conn_disconnected">Getrennt</string>
+	<string name="banner_no_connection">Keine Verbindung.</string>
+	<string name="btn_open_settings">Zu den Einstellungen</string>
+	<string name="icon_settings">Einstellungen</string>
+
+	<!-- Setup screen -->
+	<string name="setup_title">Zoo Remote – Verbindung</string>
+	<string name="setup_instructions">In VS-Code: Einstellungen → „Remote Control“ → „Pairing starten“ (Fenster bleibt 120 s offen). Dann hier Host/IP + Port eingeben und auf „Pairing“ tippen — die App gibt nach max. ~40 s mit einer Fehlermeldung auf, in der Praxis dauert es nur Sekunden. Emulator erreicht den Host über 10.0.2.2, ein echtes Gerät über die LAN-IP.</string>
+	<string name="setup_connecting">Verbinde… (%1$d s)</string>
+	<string name="setup_testing_hint">%1$d s im Versuch — bei Stille gibt die App nach max. ~40 s auf (Fehlermeldung). In der Praxis dauert Pairing nur Sekunden.</string>
+	<string name="setup_pairing_cert">Server-Zertifikat beim Pairing: %1$s</string>
+	<string name="setup_manual_title">Manuelle Eingabe (Expert)</string>
+	<string name="setup_expand">Aufklappen</string>
+	<string name="label_fingerprint">Zertifikats-Fingerprint (SHA-256)</string>
+	<string name="btn_connect">Verbinden</string>
+
+	<!-- Setup errors -->
+	<string name="err_host_missing">Host/IP fehlt.</string>
+	<string name="err_port_invalid">Port muss eine Zahl zwischen 1024 und 65535 sein.</string>
+	<string name="err_token_missing">Token fehlt — siehe VS-Code-Einstellungen „Remote Control“ oder Button „Pairing“.</string>
+	<string name="err_fingerprint_missing">Zertifikats-Fingerprint fehlt (wird beim Pairing automatisch übernommen).</string>
+	<string name="err_pair_incomplete">Pairing-Antwort unvollständig (Token oder Fingerprint fehlt).</string>
+	<string name="err_already_paired">Bereits gepaart — in VS-Code unter Einstellungen → Remote Control auf „Zurücksetzen“ tippen, dann hier erneut „Pairing“.</string>
+	<string name="err_no_pairing_window">Kein Pairing-Fenster offen (läuft 120 s) — in VS-Code unter Einstellungen → Remote Control auf „Pairing starten“ tippen, dann hier erneut „Pairing“.</string>
+	<string name="err_pair_not_possible">Server: Pairing nicht möglich (%1$s).</string>
+	<string name="err_http">Server antwortete mit HTTP %1$d — Details: %2$s</string>
+	<string name="err_host_unreachable">Host unerreichbar (%1$s). IP-Adresse und Portfreigabe im Router prüfen. Emulator: 10.0.2.2.</string>
+	<string name="err_timeout">Keine Antwort von %1$s:%2$d (Timeout nach max. 10 s). Firewall/Portfreigabe prüfen.</string>
+	<string name="err_connection_refused">Verbindung abgelehnt von %1$s:%2$d — läuft der Remote-Server (Einstellungen → Remote Control aktiv)?</string>
+	<string name="err_unexpected">Unerwarteter Fehler: %1$s</string>
+	<string name="setup_success_line">Verbunden. Modus: %1$s · Modell: %2$s%3$s</string>
+	<string name="setup_context_percent"> · Context %1$s%% (%2$s/%3$s)</string>
+	<string name="setup_context_tokens"> · Context %1$s/%2$s Tokens</string>
+	<string name="err_cert_changed_full">Zertifikat geändert — neu pairen? Erwartet wurde %1$s, der Server zeigt %2$s. In VS-Code „Pairing zurücksetzen“ drücken.</string>
+
+	<!-- Status screen -->
+	<string name="feed_empty_never_connected">Noch nie verbunden — in VS-Code den Remote-Server starten und verbinden.</string>
+	<string name="feed_empty_no_activity">Noch keine Aktivität — starte eine Task in VS-Code.</string>
+	<string name="task_running">Läuft…</string>
+	<string name="task_waiting">Wartet auf Eingabe</string>
+	<string name="task_completed">Fertig</string>
+	<string name="reasoning_thinking">Gedanken…</string>
+	<string name="reasoning_done">Gedanken</string>
+	<string name="cd_collapse">Einklappen</string>
+	<string name="cd_expand">Aufklappen</string>
+	<string name="completion_header">Task abgeschlossen</string>
+	<string name="tool_label_command">Befehl</string>
+	<string name="tool_label_tool">Werkzeug</string>
+	<string name="ask_header">Eingabe erforderlich (%1$s)</string>
+	<string name="btn_approve">Genehmigen</string>
+	<string name="btn_deny">Ablehnen</string>
+	<string name="btn_stop">Stopp</string>
+	<string name="input_placeholder_answer">Antwort…</string>
+	<string name="input_placeholder_message">Nachricht an die Session…</string>
+	<string name="input_placeholder_new_session">Neue Session starten…</string>
+	<string name="btn_send">Senden</string>
+
+	<!-- Shared action errors -->
+	<string name="err_invalid_settings">Keine gültigen Verbindungseinstellungen.</string>
+	<string name="err_wrong_token">Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen.</string>
+	<string name="err_refresh_failed">Aktualisierung fehlgeschlagen</string>
+	<string name="err_already_answered">Anfrage bereits beantwortet — Status wird neu geladen.</string>
+	<string name="err_action_failed">Aktion fehlgeschlagen</string>
+
+	<!-- Sessions screen -->
+	<string name="sessions_title">Sessions</string>
+	<string name="cd_back">Zurück</string>
+	<string name="btn_new_session">Neue Session</string>
+	<string name="sessions_empty">Noch keine Sessions in der History.</string>
+	<string name="workspaces_header">Zuletzt geöffnete Workspaces</string>
+	<string name="task_untitled">(ohne Titel)</string>
+	<string name="dialog_new_session_title">Neue Session starten</string>
+	<string name="dialog_new_session_text">Startet eine neue Task in VS Code (die aktuelle Session wird dabei geschlossen).</string>
+	<string name="dialog_new_session_placeholder">Was soll Zoo Code tun?</string>
+	<string name="btn_start">Starten</string>
+	<string name="btn_cancel">Abbrechen</string>
+	<string name="hist_active">aktiv</string>
+	<string name="hist_completed">fertig</string>
+	<string name="hist_delegated">delegiert</string>
+	<string name="hist_interrupted">abgebrochen</string>
+
+	<!-- Modes / models -->
+	<string name="modes_title">Modi</string>
+	<string name="models_title">Modelle</string>
+	<string name="cd_active">Aktiv</string>
+	<string name="err_load_sessions_failed">Sessions konnten nicht geladen werden</string>
+	<string name="err_load_modes_failed">Modi konnten nicht geladen werden</string>
+	<string name="err_mode_switch_failed">Moduswechsel fehlgeschlagen</string>
+	<string name="err_load_models_failed">Profile konnten nicht geladen werden</string>
+	<string name="err_model_switch_failed">Profilwechsel fehlgeschlagen</string>
+
+	<!-- Notifications -->
+	<string name="channel_connection_name">Verbindung</string>
+	<string name="channel_connection_desc">Persistenter Status der Zoo-Remote-Verbindung</string>
+	<string name="channel_ask_name">Eingabe erforderlich</string>
+	<string name="channel_ask_desc">Zoo Code wartet auf eine Bestätigung oder Antwort</string>
+	<string name="notif_connected">verbunden</string>
+	<string name="notif_connecting">verbinde…</string>
+	<string name="notif_error">Fehler — %1$s</string>
+	<string name="notif_disconnected">getrennt</string>
+	<string name="notif_ask_title">Zoo Remote — Eingabe erforderlich</string>
+	<string name="notif_ask_fallback">Task wartet auf %1$s</string>
+	<string name="err_no_connection_settings">Keine gültige Verbindungseinstellung — bitte neu pairen.</string>
+	<string name="err_wrong_token_short">Falscher Token — bitte neu pairen.</string>
+	<string name="err_http_generic">HTTP-Fehler</string>
+	<string name="err_unknown">Unbekannter Fehler</string>
+	<string name="notif_error_title">Zoo Remote — Fehler</string>
+
+	<!-- WebSocket / TLS errors -->
+	<string name="err_wrong_token_ws">Falscher Token (WS-Schließcode %1$d). Token unter VS-Code Einstellungen → Remote Control prüfen.</string>
+	<string name="err_cert_changed_short">Zertifikat geändert — neu pairen?</string>
+	<string name="tls_no_chain">(keine Zertifikatskette)</string>
+	<string name="err_http_von">HTTP %1$d von %2$s</string>
+</resources>

@@ -1,5 +1,7 @@
 package de.xilox.zooremote.app.data.ws
 
+import de.xilox.zooremote.app.R
+import de.xilox.zooremote.app.ZooRemoteApp
 import de.xilox.zooremote.app.data.api.FingerprintMismatchException
 import de.xilox.zooremote.app.data.api.RemoteActivityPayload
 import de.xilox.zooremote.app.data.api.RemoteStatus
@@ -135,9 +137,7 @@ class StatusSocket(
 				if (gen != generation || stopped) return
 				if (code in AUTH_CLOSE_CODES) {
 					terminal = true
-					listener?.onTerminalError(
-						"Falscher Token (WS-Schließcode $code). Token unter VS-Code Einstellungen > Remote Control prüfen.",
-					)
+					listener?.onTerminalError(ZooRemoteApp.tr(R.string.err_wrong_token_ws, code))
 				} else {
 					listener?.onDisconnected(code, reason)
 					scheduleReconnect()
@@ -149,7 +149,7 @@ class StatusSocket(
 				val fingerprintError = t.causeChain().firstOrNull { it is FingerprintMismatchException } as? FingerprintMismatchException
 				if (fingerprintError != null) {
 					terminal = true
-					listener?.onTerminalError(fingerprintError.message ?: "Zertifikat geändert — neu pairen?")
+					listener?.onTerminalError(fingerprintError.message ?: ZooRemoteApp.tr(R.string.err_cert_changed_short))
 				} else {
 					listener?.onDisconnected(-1, t.message.orEmpty())
 					scheduleReconnect()

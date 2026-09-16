@@ -43,9 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.api.RemoteTaskInfo
 import de.xilox.zooremote.app.data.api.WorkspaceInfo
 import java.time.Instant
@@ -84,12 +87,12 @@ fun SessionScreen(
 	Scaffold(
 		topBar = {
 			TopAppBar(
-				title = { Text("Sessions") },
-				navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück") } },
+				title = { Text(stringResource(R.string.sessions_title)) },
+				navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back)) } },
 				actions = {
 					// Session 9: start a new session with free text.
 					Button(onClick = { showNewSessionDialog = true }, enabled = !state.loading && !busy) {
-						Text("Neue Session", style = MaterialTheme.typography.labelLarge)
+						Text(stringResource(R.string.btn_new_session), style = MaterialTheme.typography.labelLarge)
 					}
 				},
 			)
@@ -112,7 +115,7 @@ fun SessionScreen(
 			) {
 				if (state.tasks.isEmpty()) {
 					item(key = "empty") {
-						Text("Noch keine Sessions in der History.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp))
+						Text(stringResource(R.string.sessions_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp))
 					}
 				} else {
 					items(state.tasks.size, key = { index -> state.tasks[index].taskId }) { index ->
@@ -129,7 +132,7 @@ fun SessionScreen(
 				if (state.workspaces.isNotEmpty()) {
 					item(key = "workspaces-header") {
 						Text(
-							"Zuletzt geöffnete Workspaces",
+							stringResource(R.string.workspaces_header),
 							style = MaterialTheme.typography.labelLarge,
 							color = MaterialTheme.colorScheme.onSurfaceVariant,
 							modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -176,13 +179,13 @@ private fun SessionRow(
 			horizontalArrangement = Arrangement.spacedBy(12.dp),
 		) {
 			Column(modifier = Modifier.weight(1f)) {
-				Text(task.task.ifBlank { "(ohne Titel)" }, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
+				Text(task.task.ifBlank { stringResource(R.string.task_untitled) }, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
 				val workspaceName = task.workspace?.takeIf { it.isNotBlank() }?.substringAfterLast('/')
 				val caption = buildString {
 					append(formatTimestamp(task.ts))
 					workspaceName?.let { append(" · "); append(it) }
 					task.mode?.let { append(" · "); append(it) }
-					task.status?.let { append(" · "); append(statusLabel(it)) }
+					task.status?.let { append(" · "); append(statusLabel(it, LocalContext.current)) }
 				}
 				if (caption.isNotEmpty()) {
 					Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -220,15 +223,15 @@ private fun NewSessionDialog(busy: Boolean, onDismiss: () -> Unit, onStart: (Str
 	var text by remember { mutableStateOf("") }
 	AlertDialog(
 		onDismissRequest = { if (!busy) onDismiss() },
-		title = { Text("Neue Session starten") },
+		title = { Text(stringResource(R.string.dialog_new_session_title)) },
 		text = {
 			Column {
-				Text("Startet eine neue Task in VS Code (die aktuelle Session wird dabei geschlossen).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+				Text(stringResource(R.string.dialog_new_session_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 				Spacer(Modifier.height(12.dp))
 				OutlinedTextField(
 					value = text,
 					onValueChange = { text = it },
-					placeholder = { Text("Was soll Zoo Code tun?") },
+					placeholder = { Text(stringResource(R.string.dialog_new_session_placeholder)) },
 					minLines = 2,
 					maxLines = 4,
 					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -239,7 +242,7 @@ private fun NewSessionDialog(busy: Boolean, onDismiss: () -> Unit, onStart: (Str
 		},
 		confirmButton = {
 			Button(onClick = { onStart(text.trim()) }, enabled = text.isNotBlank() && !busy) {
-				Text("Starten")
+				Text(stringResource(R.string.btn_start))
 			}
 		},
 		dismissButton = {
@@ -247,28 +250,31 @@ private fun NewSessionDialog(busy: Boolean, onDismiss: () -> Unit, onStart: (Str
 			if (busy) {
 				CircularProgressIndicator(modifier = Modifier.size(20.dp))
 			} else {
-				TextButton(onClick = onDismiss) { Text("Abbrechen") }
+				TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) }
 			}
 		},
 	)
 }
 
-private val TIMESTAMP_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm")
+/** Localized (device-locale) date + short time, e.g. "Sep 12, 2026, 2:35 PM" / "12.09.2026, 14:35". */
+private val TIMESTAMP_FORMATTER: DateTimeFormatter = java.time.format.DateTimeFormatterBuilder()
+	.appendLocalized(java.time.format.FormatStyle.MEDIUM, java.time.format.FormatStyle.SHORT)
+	.toFormatter()
 
-/** "12.09.2026, 14:35" — local time of the task's start timestamp; blank when unknown. */
+/** Local time of the task's start timestamp; blank when unknown. */
 private fun formatTimestamp(ts: Long): String {
 	if (ts <= 0) return ""
 	return try {
-		TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()))
+		TIMESTAMP_FORMATTER.withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(ts))
 	} catch (e: Exception) {
 		""
 	}
 }
 
-private fun statusLabel(status: String): String = when (status) {
-	"active" -> "aktiv"
-	"completed" -> "fertig"
-	"delegated" -> "delegiert"
-	"interrupted" -> "abgebrochen"
+private fun statusLabel(status: String, context: android.content.Context): String = when (status) {
+	"active" -> context.getString(R.string.hist_active)
+	"completed" -> context.getString(R.string.hist_completed)
+	"delegated" -> context.getString(R.string.hist_delegated)
+	"interrupted" -> context.getString(R.string.hist_interrupted)
 	else -> status
 }

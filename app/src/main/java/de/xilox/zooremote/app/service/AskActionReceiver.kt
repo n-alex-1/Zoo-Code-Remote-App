@@ -41,7 +41,7 @@ class AskActionReceiver : BroadcastReceiver() {
 			try {
 				val settings = SettingsRepository(context.applicationContext).observe().first()
 				if (!settings.isValid()) {
-					errorText = "Keine gültige Verbindungseinstellung — bitte neu pairen."
+					errorText = context.getString(R.string.err_no_connection_settings)
 				} else {
 					val client = TlsTrust.client(settings.certFingerprint)
 					val api = ZooApi(client, settings.baseUrl(), settings.token)
@@ -55,10 +55,7 @@ class AskActionReceiver : BroadcastReceiver() {
 				if (e.httpCode == 409) {
 					ok = true
 				} else {
-					errorText = when (e.httpCode) {
-						401 -> "Falscher Token — bitte neu pairen."
-						else -> e.message ?: "HTTP-Fehler"
-					}
+					errorText = if (e.httpCode == 401) context.getString(R.string.err_wrong_token_short) else e.message ?: context.getString(R.string.err_http_generic)
 					// Session 8b: the next time the user opens the app they land on setup with this message.
 					if (e.httpCode == 401) {
 						(context.applicationContext as ZooRemoteApp).connectionRepository.reportAuthFailure(errorText.orEmpty())
@@ -71,7 +68,7 @@ class AskActionReceiver : BroadcastReceiver() {
 			if (ok) {
 				(context.applicationContext as ZooRemoteApp).askNotifier.clear()
 			} else {
-				showResult(context, errorText ?: "Unbekannter Fehler")
+				showResult(context, errorText ?: context.getString(R.string.err_unknown))
 			}
 			pendingResult.finish()
 			scope.cancel()
@@ -81,7 +78,7 @@ class AskActionReceiver : BroadcastReceiver() {
 	private fun showResult(context: Context, text: String) {
 		val notification = NotificationCompat.Builder(context, ConnectionService.CHANNEL_ASK)
 			.setSmallIcon(R.drawable.ic_notification)
-			.setContentTitle("Zoo Remote — Fehler")
+			.setContentTitle(context.getString(R.string.notif_error_title))
 			.setContentText(text)
 			.setAutoCancel(true)
 			.setTimeoutAfter(5_000L)

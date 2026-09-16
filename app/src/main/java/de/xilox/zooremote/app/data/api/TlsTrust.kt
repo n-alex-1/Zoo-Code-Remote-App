@@ -1,5 +1,7 @@
 package de.xilox.zooremote.app.data.api
 
+import de.xilox.zooremote.app.R
+import de.xilox.zooremote.app.ZooRemoteApp
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -13,12 +15,12 @@ import okhttp3.OkHttpClient
 
 /**
  * Raised when the server presented a certificate whose SHA-256 fingerprint does not match
- * the pinned one. The message is user-facing (German, per app language).
+ * the pinned one. The message is user-facing and localized at construction time.
  */
 class FingerprintMismatchException(
 	val expected: String,
 	val actual: String,
-) : RuntimeException("Zertifikat geändert — neu pairen? (erwartet $expected, vorgefunden $actual)")
+) : RuntimeException(ZooRemoteApp.tr(R.string.err_cert_changed_short))
 
 /**
  * Builds an [OkHttpClient] that trusts exactly one certificate: the leaf server certificate
@@ -81,7 +83,7 @@ object TlsTrust {
 			override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = platform.checkClientTrusted(chain, authType)
 
 			override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-				val leaf = chain.firstOrNull() ?: throw FingerprintMismatchException(expectedFingerprint, "(keine Kette)")
+				val leaf = chain.firstOrNull() ?: throw FingerprintMismatchException(expectedFingerprint, ZooRemoteApp.tr(R.string.tls_no_chain))
 
 				// 1) Pin check on the leaf certificate (chain[0]) — always enforced, so even a valid
 				//    public-CA cert of an attacker fails.

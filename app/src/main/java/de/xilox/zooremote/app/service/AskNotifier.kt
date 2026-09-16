@@ -71,8 +71,8 @@ class AskNotifier(
 		)
 		val builder = NotificationCompat.Builder(context, ConnectionService.CHANNEL_ASK)
 			.setSmallIcon(R.drawable.ic_notification)
-			.setContentTitle("Zoo Remote — Eingabe erforderlich")
-			.setContentText(question.ifEmpty { "Task wartet auf ${ask.askType}" })
+			.setContentTitle(context.getString(R.string.notif_ask_title))
+			.setContentText(question.ifEmpty { context.getString(R.string.notif_ask_fallback, ask.askType) })
 			.setStyle(NotificationCompat.BigTextStyle().bigText(question))
 			.setAutoCancel(false)
 			.setOngoing(true)
@@ -80,10 +80,10 @@ class AskNotifier(
 
 		if (ask.canApprove) {
 			builder.addAction(
-				NotificationCompat.Action.Builder(0, "Genehmigen", actionPendingIntent("yesButtonClicked")).build(),
+				NotificationCompat.Action.Builder(0, context.getString(R.string.btn_approve), actionPendingIntent("yesButtonClicked")).build(),
 			)
 			builder.addAction(
-				NotificationCompat.Action.Builder(1, "Ablehnen", actionPendingIntent("noButtonClicked")).build(),
+				NotificationCompat.Action.Builder(1, context.getString(R.string.btn_deny), actionPendingIntent("noButtonClicked")).build(),
 			)
 		}
 

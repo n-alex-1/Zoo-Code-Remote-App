@@ -1,5 +1,7 @@
 package de.xilox.zooremote.app.data.api
 
+import de.xilox.zooremote.app.R
+import de.xilox.zooremote.app.ZooRemoteApp
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -87,7 +89,7 @@ class ZooApi(
 		client.newCall(request).execute().use { res ->
 			val body = res.body?.string().orEmpty()
 			if (!res.isSuccessful) {
-				throw ZooApiException("HTTP ${res.code} von /api/pair", res.code, body.take(300))
+				throw ZooApiException(ZooRemoteApp.tr(R.string.err_http_von, res.code, "/api/pair"), res.code, body.take(300))
 			}
 			return json.decodeFromString(PairResponse.serializer(), body)
 		}
@@ -161,7 +163,7 @@ class ZooApi(
 		client.newCall(request).execute().use { res ->
 			val responseBody = res.body?.string().orEmpty()
 			if (!res.isSuccessful) {
-				throw ZooApiException("HTTP ${res.code} von /api/task/cancel", res.code, responseBody.take(300))
+				throw ZooApiException(ZooRemoteApp.tr(R.string.err_http_von, res.code, "/api/task/cancel"), res.code, responseBody.take(300))
 			}
 			return if (responseBody.contains("\"task\"")) json.decodeFromString(RemoteStatus.serializer(), responseBody) else null
 		}
@@ -195,7 +197,7 @@ class ZooApi(
 		client.newCall(request).execute().use { res ->
 			val responseBody = res.body?.string().orEmpty()
 			if (!res.isSuccessful) {
-				throw ZooApiException("HTTP ${res.code} von /$path", res.code, responseBody.take(300))
+				throw ZooApiException(ZooRemoteApp.tr(R.string.err_http_von, res.code, "/$path"), res.code, responseBody.take(300))
 			}
 			return if (responseBody.contains("\"task\"")) json.decodeFromString(RemoteStatus.serializer(), responseBody) else null
 		}
@@ -210,7 +212,7 @@ class ZooApi(
 		client.newCall(request).execute().use { res ->
 			val body = res.body?.string().orEmpty()
 			if (!res.isSuccessful) {
-				throw ZooApiException("HTTP ${res.code} von /$path", res.code, body.take(300))
+				throw ZooApiException(ZooRemoteApp.tr(R.string.err_http_von, res.code, "/$path"), res.code, body.take(300))
 			}
 			return json.decodeFromString(deserializer, body)
 		}
@@ -226,7 +228,7 @@ class ZooApi(
 		client.newCall(request).execute().use { res ->
 			val responseBody = res.body?.string().orEmpty()
 			if (!res.isSuccessful) {
-				throw ZooApiException("HTTP ${res.code} von /$path", res.code, responseBody.take(300))
+				throw ZooApiException(ZooRemoteApp.tr(R.string.err_http_von, res.code, "/$path"), res.code, responseBody.take(300))
 			}
 			return json.decodeFromString(deserializer, responseBody)
 		}

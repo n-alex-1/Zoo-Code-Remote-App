@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.xilox.zooremote.app.ZooRemoteApp
+import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.api.RemoteTaskInfo
 import de.xilox.zooremote.app.data.api.TlsTrust
 import de.xilox.zooremote.app.data.api.WorkspaceInfo
@@ -43,6 +44,9 @@ data class SessionUiState(
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
 
 	private val repository: ConnectionRepository = ZooRemoteApp.from(application).connectionRepository
+
+	/** Locale-aware string lookup (errors are built on IO threads, not composables). */
+	private fun tr(@androidx.annotation.StringRes resId: Int): String = getApplication<Application>().getString(resId)
 
 	private val tasksFlow = MutableStateFlow<List<RemoteTaskInfo>>(emptyList())
 	private val workspacesFlow = MutableStateFlow<List<WorkspaceInfo>>(emptyList())
@@ -90,16 +94,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 			loadErrorFlow.value = null
 			try {
 				val settings = repository.savedSettings()
-				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
+				if (!settings.isValid()) throw ZooApiException(tr(R.string.err_invalid_settings))
 				val api = ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token)
 				// Per-workspace history (same comparison as the webview's own list); null = global.
 				tasksFlow.value = api.getTasks(workspace)
 				workspacesFlow.value = api.getWorkspaces()
 			} catch (e: ZooApiException) {
-				loadErrorFlow.value = when (e.httpCode) {
-					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
-					else -> e.message ?: "Sessions konnten nicht geladen werden"
-				}
+				loadErrorFlow.value = if (e.httpCode == 401) tr(R.string.err_wrong_token) else e.message ?: tr(R.string.err_load_sessions_failed)
 				if (e.httpCode == 401) repository.reportAuthFailure(loadErrorFlow.value.orEmpty()) // session 8b: back to setup
 			} catch (e: Exception) {
 				loadErrorFlow.value = e.message ?: e::class.java.simpleName
@@ -124,14 +125,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 			var success = false
 			try {
 				val settings = repository.savedSettings()
-				if (!settings.isValid()) throw ZooApiException("Keine gültigen Verbindungseinstellungen.")
+				if (!settings.isValid()) throw ZooApiException(tr(R.string.err_invalid_settings))
 				action(ZooApi(TlsTrust.client(settings.certFingerprint), settings.baseUrl(), settings.token))
 				success = true
 			} catch (e: ZooApiException) {
-				val message = when (e.httpCode) {
-					401 -> "Falscher Token (HTTP 401). Einstellungen prüfen und neu pairen."
-					else -> e.message ?: "Aktion fehlgeschlagen"
-				}
+				val message = if (e.httpCode == 401) tr(R.string.err_wrong_token) else e.message ?: tr(R.string.err_action_failed)
 				failAction(message)
 				if (e.httpCode == 401) repository.reportAuthFailure(message) // session 8b: back to setup
 			} catch (e: Exception) {
