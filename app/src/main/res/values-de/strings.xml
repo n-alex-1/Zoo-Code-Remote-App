@@ -104,6 +104,7 @@
 	<string name="notif_connecting">verbinde…</string>
 	<string name="notif_error">Fehler — %1$s</string>
 	<string name="notif_disconnected">getrennt</string>
+	<string name="notif_action_disconnect">Trennen</string>
 	<string name="notif_ask_title">Zoo Remote — Eingabe erforderlich</string>
 	<string name="notif_ask_fallback">Task wartet auf %1$s</string>
 	<string name="err_no_connection_settings">Keine gültige Verbindungseinstellung — bitte neu pairen.</string>

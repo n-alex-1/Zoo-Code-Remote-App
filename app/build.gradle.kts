@@ -52,6 +52,8 @@ dependencies {
 	implementation(libs.compose.material.icons.extended)
 	implementation(libs.navigation.compose)
 	implementation(libs.lifecycle.viewmodel.compose)
+	// Session 10: ProcessLifecycleOwner → stop/restart the connection service with app foreground/background.
+	implementation(libs.lifecycle.process)
 
 	implementation(libs.okhttp)
 	implementation(libs.markwon.core)
