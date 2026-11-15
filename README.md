@@ -7,6 +7,7 @@ UI language follows the device locale: English by default, German included (`val
 ## Features
 
 - **Live status screen:** connection indicator (green/yellow/red), chips for current mode, model profile and context-window usage; chat-style activity feed with collapsible reasoning, tool/command lines, errors and completion results.
+- **Readable tool feed:** raw `ClineSayTool` JSON is parsed into compact, icon-coded chips — a localized verb plus the target (e.g. "Read file · placeadd.php") and a muted detail line carrying the rest of the payload (regex, glob filter, `+14/−3` diff stats, todo progress, "outside workspace" flag). Consecutive identical calls collapse into one chip with a `×N` badge, and tapping a chip still reveals the original payload (session 11).
 - **Ask handling:** confirmation asks via "Approve"/"Deny", free-text answers and follow-up suggestions right from the app — same code path as the webview (`yesButtonClicked`/`noButtonClicked`/`messageResponse`).
 - **Notifications:** persistent connection notification (foreground service, `dataSync`) + "Input required" notification with Approve/Deny actions — works while the app is closed. Android 13+ asks for the notification permission once.
 - **Session picker:** task history per workspace (`GET /api/tasks?workspace=`), restore/open/cancel tasks, recently used workspaces openable in a new VS Code window; start new sessions with free text.

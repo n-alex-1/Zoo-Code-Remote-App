@@ -3,17 +3,31 @@ package de.xilox.zooremote.app.ui.status
 import android.content.Context
 import android.view.ContextThemeWrapper
 import android.widget.TextView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,26 +43,44 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
@@ -59,6 +91,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -72,6 +105,7 @@ import de.xilox.zooremote.app.R
 import de.xilox.zooremote.app.data.api.ActivityItem
 import de.xilox.zooremote.app.data.api.AskText
 import de.xilox.zooremote.app.data.api.RemoteSuggestion
+import de.xilox.zooremote.app.data.api.ToolText
 import de.xilox.zooremote.app.data.connection.ConnectionState
 import io.noties.markwon.Markwon
 import kotlinx.coroutines.launch
@@ -159,31 +193,88 @@ private fun StatusTopBar(
 		}
 	}
 
-	Surface(shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
-		Row(
-			modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-			verticalAlignment = Alignment.CenterVertically,
-		) {
-			// Session 9: short title so it never truncates next to the chips and icons.
-			Text("Zoo", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-			Box(modifier = Modifier.size(10.dp).background(dotColor, CircleShape), contentAlignment = Alignment.Center) {}
-			Spacer(Modifier.width(6.dp))
-			Text(dotLabel, style = MaterialTheme.typography.bodySmall, color = dotColor)
+	// Cross-fade the pill color on state changes instead of snapping (session 10 redesign).
+	val animatedColor by animateColorAsState(targetValue = dotColor, animationSpec = tween(350), label = "statusPillColor")
+	val hasChips = modeLabel.isNotEmpty() || modelLine.isNotEmpty() || contextText != null
 
-			if (modeLabel.isNotEmpty() || modelLine.isNotEmpty() || contextText != null) {
-				Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp)) {
-					// Session 7: chips are clickable and open the mode/model picker screens.
-					if (modeLabel.isNotEmpty()) Chip(modeLabel, onClick = onModeClick)
-					if (modelLine.isNotEmpty()) Chip(modelLine, onClick = onModelClick)
-					contextText?.let { Chip(it, highlighted = true) }
-				}
+	Surface(shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+		Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, bottom = if (hasChips) 0.dp else 2.dp)) {
+			// Row 1: title + animated status pill + icon buttons.
+			Row(
+				modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				// Full app name in the header — "Zoo" alone looked truncated; the row still has room.
+				Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+				StatusPill(color = animatedColor, label = dotLabel, pulsing = connectionState is ConnectionState.Connecting)
+				TopBarIconButton(Icons.Filled.History, "Sessions", onClick = onOpenSessions)
+				TopBarIconButton(Icons.Filled.Settings, stringResource(R.string.icon_settings), onClick = onOpenSettings)
 			}
 
-			// Session 9: sessions & settings icons — always reachable, also while connected.
-			Spacer(Modifier.width(8.dp))
-			TopBarIconButton(Icons.Filled.History, "Sessions", onClick = onOpenSessions)
-			TopBarIconButton(Icons.Filled.Settings, stringResource(R.string.icon_settings), onClick = onOpenSettings)
+			// Row 2: mode/model/context chips — slides down when the server sends data. The model
+			// name moved here (session 10) and carries the highlighted style; the context chip is secondary.
+			AnimatedVisibility(
+				visible = hasChips,
+				enter = fadeIn(tween(250)) + slideInVertically(tween(350), initialOffsetY = { -it / 4 }),
+				exit = fadeOut(tween(150)) + slideOutVertically(tween(250), targetOffsetY = { -it / 4 }),
+			) {
+				Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 10.dp)) {
+					if (modeLabel.isNotEmpty()) Chip(modeLabel, onClick = onModeClick)
+					if (modelLine.isNotEmpty()) Chip(modelLine, highlighted = true, onClick = onModelClick)
+					contextText?.let { Chip(it) }
+				}
+			}
 		}
+	}
+}
+
+/** Tinted status pill: spring pop-in when the label changes + sonar ping while connecting. */
+@Composable
+private fun StatusPill(color: Color, label: String, pulsing: Boolean) {
+	key(label) {
+		// Flips after first composition so the pill animates in (0.5 → 1.0) instead of appearing at full scale.
+		var popped by remember { mutableStateOf(false) }
+		LaunchedEffect(Unit) { popped = true }
+		val pop by animateFloatAsState(
+			targetValue = if (popped) 1f else 0.5f,
+			animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
+			label = "statusPillPop",
+		)
+		Surface(color = color.copy(alpha = 0.12f), shape = CircleShape) {
+			Row(
+				modifier = Modifier.scale(pop).padding(horizontal = 10.dp, vertical = 5.dp),
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				StatusDot(color = color, pulsing = pulsing)
+				Spacer(Modifier.width(6.dp))
+				Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
+			}
+		}
+	}
+}
+
+/** Connection dot; while [pulsing] an expanding ring radiates behind it (sonar effect). */
+@Composable
+private fun StatusDot(color: Color, pulsing: Boolean) {
+	val transition = rememberInfiniteTransition(label = "statusPing")
+	val pingScale by transition.animateFloat(
+		initialValue = 1f,
+		targetValue = 2.6f,
+		animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Restart),
+		label = "pingScale",
+	)
+	val pingAlpha by transition.animateFloat(
+		initialValue = 0.45f,
+		targetValue = 0f,
+		animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Restart),
+		label = "pingAlpha",
+	)
+
+	Box(contentAlignment = Alignment.Center) {
+		if (pulsing) {
+			Box(modifier = Modifier.size(9.dp).scale(pingScale).alpha(pingAlpha).background(color, CircleShape))
+		}
+		Box(modifier = Modifier.size(9.dp).background(color, CircleShape))
 	}
 }
 
@@ -210,16 +301,16 @@ private fun Chip(
 	}
 }
 
-/** Session 9: top-bar icon button (sessions / settings). */
+/** Modern top-bar icon button (session 10): transparent with the standard M3 ripple instead of a filled circle. */
 @Composable
 private fun TopBarIconButton(imageVector: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
-	Surface(
-		color = MaterialTheme.colorScheme.surfaceVariant,
-		shape = CircleShape,
-		modifier = Modifier.size(32.dp).clickable(onClick = onClick),
-	) {
-		// 7dp padding centers the 18dp icon inside the 32dp circle (M3 Surface has no contentAlignment here — session 5 tooling note).
-		Icon(imageVector, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp).padding(7.dp))
+	IconButton(onClick = onClick) {
+		Icon(
+			imageVector = imageVector,
+			contentDescription = contentDescription,
+			tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+			modifier = Modifier.size(22.dp),
+		)
 	}
 }
 
@@ -311,6 +402,10 @@ private fun ActivityFeed(
 
 	val scope = rememberCoroutineScope()
 
+	// Session 11 feed redesign: consecutive identical tool calls collapse into one chip with a
+	// "×N" badge, which turns long read/search chains into a few scannable lines.
+	val groups = remember(items) { ToolText.group(items) }
+
 	LazyColumn(
 		state = listState,
 		modifier = modifier.fillMaxSize().then(
@@ -327,9 +422,9 @@ private fun ActivityFeed(
 			} else Modifier,
 		),
 		contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-		verticalArrangement = Arrangement.spacedBy(10.dp),
+		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
-		items(items, key = { it.ts }) { item -> ActivityRow(item, onPickSuggestion) }
+		items(groups, key = { it.items.first().ts }) { group -> ActivityRow(group, onPickSuggestion) }
 	}
 }
 
@@ -349,12 +444,13 @@ fun TaskStateBadge(state: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ActivityRow(item: ActivityItem, onPickSuggestion: (RemoteSuggestion) -> Unit = {}) {
+private fun ActivityRow(group: ToolText.ToolGroup, onPickSuggestion: (RemoteSuggestion) -> Unit = {}) {
+	val item = group.representative
 	when (item.category) {
 		"reasoning" -> ReasoningRow(item)
 		"text" -> MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth())
 		"completion_result" -> CompletionRow(item)
-		"tool", "command" -> ToolRow(item)
+		"tool", "command" -> ToolRow(group)
 		"error" -> ErrorRow(item)
 
 		else -> when (item.kind) {
@@ -371,14 +467,20 @@ private fun ReasoningRow(item: ActivityItem) {
 	val streaming = item.partial == true && !expanded
 
 	Surface(
-		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-		shape = RoundedCornerShape(8.dp),
+		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+		shape = RoundedCornerShape(10.dp),
 		modifier = Modifier.fillMaxWidth(),
 	) {
 		// Session 8b UI fix: the whole row (chevron included) toggles expansion on tap.
-		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).clickable { expanded = !expanded }) {
-			Row(verticalAlignment = Alignment.CenterVertically) {
-				Text(if (streaming) stringResource(R.string.reasoning_thinking) else stringResource(R.string.reasoning_done), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+		Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp).clickable { expanded = !expanded }) {
+			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+				Icon(
+					imageVector = Icons.Filled.Psychology,
+					contentDescription = null,
+					tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+					modifier = Modifier.size(15.dp),
+				)
+				Text(if (streaming) stringResource(R.string.reasoning_thinking) else stringResource(R.string.reasoning_done), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
 				Icon(
 					imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
 					contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
@@ -407,32 +509,177 @@ private fun CompletionRow(item: ActivityItem) {
 	}
 }
 
-/** Compact one-line tool/command entry: icon + short label (no JSON rendering). */
+/**
+ * Tool/command chip (session 11 redesign): a color-coded icon, a short human label ("Datei lesen ·
+ * placeadd.php") and — when the call carries extra context — a muted detail line (regex, pattern,
+ * diff stats …). Long JSON payloads are gone; the raw payload stays reachable by tapping the chip,
+ * and runs of identical calls collapse into one chip with an "×N" badge.
+ */
 @Composable
-private fun ToolRow(item: ActivityItem) {
+private fun ToolRow(group: ToolText.ToolGroup) {
+	val item = group.representative
+	val parsed = remember(item) { ToolText.parse(item.text) }
 	val isCommand = item.category == "command"
+	val context = LocalContext.current
+
+	val (icon, tint) = toolIconAndTint(parsed, isCommand)
+	val label = toolLabel(parsed, item.category, context)
+	val detail = toolDetail(parsed, label.substringAfter(" · ", ""), context)
+	val raw = item.text?.trim().orEmpty()
+	// The raw payload (full JSON / multi-line script) stays reachable behind a tap.
+	val expandable = raw.isNotEmpty() && (parsed?.tool != null || '\n' in raw)
+
+	var expanded by remember(item.ts) { mutableStateOf(false) }
+
 	Surface(
-		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-		shape = RoundedCornerShape(8.dp),
-		modifier = Modifier.fillMaxWidth(),
+		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+		shape = RoundedCornerShape(10.dp),
+		modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
 	) {
-		Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-			Icon(
-				imageVector = if (isCommand) Icons.Filled.PlayArrow else Icons.Filled.Build,
-				contentDescription = null,
-				tint = MaterialTheme.colorScheme.onSurfaceVariant,
-				modifier = Modifier.size(16.dp),
-			)
-			val label = shortToolLabel(item, LocalContext.current).let { if (it.length > 80) it.take(79) + "…" else it }
-			Text(label, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+		Row {
+			// Thin accent bar in the tool category's color — makes read/search/edit chains scannable at a glance.
+			Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(tint.copy(alpha = 0.85f), shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)))
+			Column(
+				modifier = Modifier.weight(1f).padding(start = 10.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
+					.then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier),
+			) {
+				Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+					Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+					Text(
+						text = buildString {
+							append(label)
+							if (group.count > 1) append("  ·  ×").append(group.count)
+						},
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onSurface,
+						maxLines = 1,
+						overflow = TextOverflow.Ellipsis,
+						modifier = Modifier.weight(1f, fill = false),
+					)
+					if (parsed?.isOutsideWorkspace == true) {
+						Text(
+							stringResource(R.string.tool_outside_workspace),
+							style = MaterialTheme.typography.labelSmall,
+							color = MaterialTheme.colorScheme.tertiary,
+							maxLines = 1,
+						)
+					}
+					if (expandable) {
+						Icon(
+							imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+							contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
+							tint = MaterialTheme.colorScheme.onSurfaceVariant,
+							modifier = Modifier.size(16.dp),
+						)
+					}
+				}
+				if (!detail.isNullOrBlank()) {
+					Text(
+						detail,
+						style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+						maxLines = if (expanded) 4 else 1,
+						overflow = TextOverflow.Ellipsis,
+						modifier = Modifier.padding(top = 2.dp, start = 23.dp),
+					)
+				}
+				if (expanded) {
+					Text(
+						raw,
+						style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+						maxLines = 8,
+						overflow = TextOverflow.Ellipsis,
+						modifier = Modifier.padding(top = 4.dp, start = 23.dp),
+					)
+				}
+			}
 		}
 	}
 }
 
-private fun shortToolLabel(item: ActivityItem, context: Context): String {
-	val text = item.text?.trim().orEmpty()
-	if (text.isEmpty()) return context.getString(if (item.category == "command") R.string.tool_label_command else R.string.tool_label_tool)
-	return text.lineSequence().firstOrNull { it.isNotBlank() } ?: item.category
+/** Tool-specific icon + accent color: read/search/edit/command groups are recognizable at a glance. */
+@Composable
+private fun toolIconAndTint(parsed: ToolText.Parsed?, isCommand: Boolean): Pair<androidx.compose.ui.graphics.vector.ImageVector, Color> {
+	if (isCommand) return Icons.Filled.Terminal to Color(0xFF26A69A)
+	return when (parsed?.tool) {
+		"readFile", "readCommandOutput" -> Icons.Filled.Article to Color(0xFF42A5F5)
+		"listFilesTopLevel", "listFilesRecursive" -> Icons.Filled.FolderOpen to Color(0xFF7E57C2)
+		"searchFiles" -> Icons.Filled.Search to Color(0xFF9CCC65)
+		"codebaseSearch" -> Icons.Filled.ManageSearch to Color(0xFFD4A017)
+		"editedExistingFile", "appliedDiff" -> Icons.Filled.Edit to Color(0xFFFF7043)
+		"newFileCreated" -> Icons.Filled.NoteAdd to Color(0xFF66BB6A)
+		"switchMode" -> Icons.Filled.SwapHoriz to Color(0xFFAB47BC)
+		"newTask" -> Icons.Filled.RocketLaunch to Color(0xFF5C6BC0)
+		"finishTask" -> Icons.Filled.Flag to Color(0xFF26A69A)
+		"generateImage", "imageGenerated" -> Icons.Filled.AutoAwesome to Color(0xFFEC407A)
+		"runSlashCommand" -> Icons.Filled.Bolt to Color(0xFFD4A017)
+		"updateTodoList" -> Icons.Filled.Checklist to Color(0xFF66BB6A)
+		"skill" -> Icons.Filled.Psychology to Color(0xFF7E57C2)
+		else -> Icons.Filled.Build to MaterialTheme.colorScheme.onSurfaceVariant
+	}
+}
+
+/** Human-readable, localized verb for the tool ("Datei lesen"); falls back to raw first line. */
+@Composable
+private fun toolLabel(parsed: ToolText.Parsed?, category: String, context: Context): String {
+	val key = when (parsed?.tool) {
+		"readFile" -> R.string.tool_read
+		"readCommandOutput" -> R.string.tool_read_output
+		"listFilesTopLevel" -> R.string.tool_list
+		"listFilesRecursive" -> R.string.tool_list_recursive
+		"searchFiles" -> R.string.tool_search
+		"codebaseSearch" -> R.string.tool_codebase_search
+		"editedExistingFile", "appliedDiff" -> R.string.tool_edit
+		"newFileCreated" -> R.string.tool_new_file
+		"switchMode" -> R.string.tool_switch_mode
+		"newTask" -> R.string.tool_new_task
+		"finishTask" -> R.string.tool_finish_task
+		"generateImage", "imageGenerated" -> R.string.tool_image
+		"runSlashCommand" -> R.string.tool_slash_command
+		"updateTodoList" -> R.string.tool_todos
+		"skill" -> R.string.tool_skill
+		else -> null
+	}
+	val verb = key?.let { context.getString(it) } ?: context.getString(if (category == "command") R.string.tool_label_command else R.string.tool_label_tool)
+	// The object of the verb: file name, mode slug, command … (keeps the line informative, not just "Werkzeug").
+	val objectText = when {
+		parsed == null -> ""
+		category == "command" -> parsed.rawFirstLine.orEmpty()
+		else -> sequenceOf(parsed.path?.let { ToolText.fileName(it) }, parsed.mode, parsed.command, parsed.skill, parsed.query, parsed.rawFirstLine)
+			.firstOrNull { !it.isNullOrBlank() }.orEmpty()
+	}
+	return if (objectText.isBlank()) verb else "$verb · $objectText"
+}
+
+/**
+ * Muted second line with the remaining parameters — the info the old JSON dump carried. The
+ * [labelObject] (the verb's object already shown on the first line) is filtered out to avoid
+ * repeating the same value twice.
+ */
+@Composable
+private fun toolDetail(parsed: ToolText.Parsed?, labelObject: String, context: Context): String? {
+	if (parsed == null) return null
+	val parts = mutableListOf<String>()
+	parsed.path?.let { path ->
+		val dir = path.replace('\\', '/').trimEnd('/').substringBeforeLast('/', "").replace('/', '·')
+		if (dir.isNotBlank()) parts += dir
+	}
+	parsed.regex?.let { parts += "/${it}/" }
+	parsed.filePattern?.let { parts += context.getString(R.string.tool_detail_pattern, it) }
+	when {
+		parsed.startLine > 0 -> parts += context.getString(R.string.tool_detail_line, parsed.startLine)
+		parsed.lineNumber > 0 -> parts += context.getString(R.string.tool_detail_line, parsed.lineNumber)
+	}
+	(parsed.matchCount.takeIf { it > 0 })?.let { parts += context.getString(R.string.tool_detail_matches, it) }
+	parsed.query?.let { parts += "\"${it}\"" }
+	parsed.args?.let { parts += it }
+	if (parsed.linesAdded > 0 || parsed.linesRemoved > 0) parts += context.getString(R.string.tool_detail_diff, parsed.linesAdded, parsed.linesRemoved)
+	if (parsed.todoTotal > 0) parts += context.getString(R.string.tool_detail_todos, parsed.todoDone, parsed.todoTotal)
+	(parsed.additionalFileCount.takeIf { it > 0 })?.let { parts += context.getString(R.string.tool_detail_more_files, it) }
+	parsed.description?.let { parts += it }
+	// Drop the piece already shown on the label line so the detail adds info instead of repeating it.
+	return parts.filter { it.isNotBlank() && it != labelObject && it != "\"$labelObject\"" }.distinct().joinToString("  ·  ").takeIf { it.isNotBlank() }
 }
 
 @Composable
