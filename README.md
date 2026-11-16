@@ -6,7 +6,8 @@ UI language follows the device locale: English by default, German included (`val
 
 ## Features
 
-- **Live status screen:** connection indicator (green/yellow/red), chips for current mode, model profile and context-window usage; chat-style activity feed with collapsible reasoning, tool/command lines, errors and completion results.
+- **Live status screen:** violet brand theme (near-black background, lavender accents — dark & light), app-icon badge in the header, connection pill (green/amber/red), tonal chips for mode/model/context, and a chat-style feed under an "Current chat / Session active" section header.
+- **Chat-like feed (session 12):** assistant messages carry an avatar header; tool/command calls render as rounded cards with a category-colored icon badge, a localized verb + target, a muted detail line and a "Done/Running" status pill — the raw payload stays one tap away; repeated identical calls collapse to one card (×N).
 - **Readable tool feed:** raw `ClineSayTool` JSON is parsed into compact, icon-coded chips — a localized verb plus the target (e.g. "Read file · placeadd.php") and a muted detail line carrying the rest of the payload (regex, glob filter, `+14/−3` diff stats, todo progress, "outside workspace" flag). Consecutive identical calls collapse into one chip with a `×N` badge, and tapping a chip still reveals the original payload (session 11).
 - **Ask handling:** confirmation asks via "Approve"/"Deny", free-text answers and follow-up suggestions right from the app — same code path as the webview (`yesButtonClicked`/`noButtonClicked`/`messageResponse`).
 - **Notifications:** persistent connection notification (foreground service, `dataSync`) + "Input required" notification with Approve/Deny actions — works while the app is closed. Android 13+ asks for the notification permission once.

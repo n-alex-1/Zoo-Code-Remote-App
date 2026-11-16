@@ -54,11 +54,20 @@ class ToolTextTest {
 	}
 
 	@Test
-	fun `falls back to raw first line for truncated JSON`() {
-		// The server truncates payloads at 2000 chars mid-object → org.json throws → fallback.
+	fun `recovers tool and path from truncated JSON via regex fallback`() {
+		// The server truncates payloads at 2000 chars mid-object → org.json throws; the identifying
+		// fields are still extracted with a regex so the card shows a readable label, not raw JSON.
 		val parsed = ToolText.parse("""{"tool":"readFile","path":"very/long/file.php","con""")!!
-		assertNull(parsed.tool)
+		assertEquals("readFile", parsed.tool)
+		assertEquals("very/long/file.php", parsed.path)
 		assertEquals("""{"tool":"readFile","path":"very/long/file.php","con""", parsed.rawFirstLine)
+	}
+
+	@Test
+	fun `leaves tool null for object-shaped text without recognizable fields`() {
+		val parsed = ToolText.parse("""{"abc""")!!
+		assertNull(parsed.tool)
+		assertNull(parsed.path)
 	}
 
 	@Test

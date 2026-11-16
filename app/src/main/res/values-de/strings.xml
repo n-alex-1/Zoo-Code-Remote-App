@@ -45,6 +45,13 @@
 	<string name="task_running">Läuft…</string>
 	<string name="task_waiting">Wartet auf Eingabe</string>
 	<string name="task_completed">Fertig</string>
+	<!-- Feed-Sektion + Assistant-Header (Redesign Sitzung 12). -->
+	<string name="feed_section_title">Aktueller Chat</string>
+	<string name="feed_section_session_active">Session aktiv</string>
+	<string name="feed_section_session_idle">Keine Session</string>
+	<string name="feed_assistant">Assistent</string>
+	<string name="tool_status_running">Läuft</string>
+	<string name="tool_status_done">Fertig</string>
 	<string name="reasoning_thinking">Gedanken…</string>
 	<string name="reasoning_done">Gedanken</string>
 	<string name="cd_collapse">Einklappen</string>

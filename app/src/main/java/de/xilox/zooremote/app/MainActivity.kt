@@ -8,12 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +31,7 @@ import de.xilox.zooremote.app.ui.modes.ModeScreen
 import de.xilox.zooremote.app.ui.sessions.SessionScreen
 import de.xilox.zooremote.app.ui.setup.SetupScreen
 import de.xilox.zooremote.app.ui.status.StatusScreen
+import de.xilox.zooremote.app.ui.theme.ZooRemoteTheme
 import kotlinx.coroutines.flow.first
 
 /**
@@ -47,8 +44,8 @@ class MainActivity : ComponentActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContent {
-			val dark = isSystemInDarkTheme()
-			MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+			// Session 12: central violet brand theme instead of the stock Material palette.
+			ZooRemoteTheme {
 				Surface(modifier = Modifier.fillMaxSize()) {
 					ZooRemoteNavHost(settingsRepository = SettingsRepository(this), activity = this)
 				}

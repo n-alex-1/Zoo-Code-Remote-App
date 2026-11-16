@@ -64,8 +64,19 @@ object ToolText {
 		val trimmed = raw?.trim().orEmpty()
 		if (trimmed.isEmpty()) return null
 		if (!trimmed.startsWith("{")) return Parsed(rawFirstLine = firstLine(trimmed))
+		// Truncated payloads (server caps at 2000 chars, common for big appliedDiff edits) still
+		// carry the identifying fields in the first line — regex them out instead of showing raw JSON.
 		return runCatching { decode(org.json.JSONObject(trimmed)) }
-			.getOrNull() ?: Parsed(rawFirstLine = firstLine(trimmed))
+			.getOrNull() ?: parseTruncated(trimmed)
+	}
+
+	private val TOOL_FIELD = Regex("\"tool\"\\s*:\\s*\"([A-Za-z]+)\"")
+	private val PATH_FIELD = Regex("\"path\"\\s*:\\s*\"([^\"]+)\"")
+
+	private fun parseTruncated(text: String): Parsed {
+		val tool = TOOL_FIELD.find(text)?.groupValues?.get(1)
+		val path = PATH_FIELD.find(text)?.groupValues?.get(1)
+		return Parsed(tool = tool, path = path, rawFirstLine = firstLine(text))
 	}
 
 	private fun decode(o: org.json.JSONObject): Parsed {

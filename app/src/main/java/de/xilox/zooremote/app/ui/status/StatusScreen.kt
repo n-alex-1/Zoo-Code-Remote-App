@@ -20,17 +20,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -43,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Bolt
@@ -58,10 +58,12 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ManageSearch
 import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.CircularProgressIndicator
@@ -70,9 +72,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -107,6 +110,7 @@ import de.xilox.zooremote.app.data.api.AskText
 import de.xilox.zooremote.app.data.api.RemoteSuggestion
 import de.xilox.zooremote.app.data.api.ToolText
 import de.xilox.zooremote.app.data.connection.ConnectionState
+import de.xilox.zooremote.app.ui.theme.ZooColors
 import io.noties.markwon.Markwon
 import kotlinx.coroutines.launch
 
@@ -142,6 +146,11 @@ fun StatusScreen(
 			onOpenSessions = onOpenSessions,
 		)
 		ConnectionBanner(state.connectionState, onOpenSettings)
+
+		// Session 12 visual redesign: subtle divider + section header above the feed, mirroring the
+		// approved mockup ("Aktueller Chat" with the live session state on the right).
+		HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 6.dp))
+		FeedSectionHeader(taskState = state.lastStatus?.task?.state)
 
 		val items = state.activity
 		val neverConnected = state.lastStatus == null && state.activity.isEmpty() && (state.connectionState is ConnectionState.Disconnected || state.connectionState is ConnectionState.Error)
@@ -184,12 +193,12 @@ private fun StatusTopBar(
 	onOpenSessions: () -> Unit = {},
 ) {
 	val (dotColor, dotLabel) = when (connectionState) {
-		is ConnectionState.Connected -> Color(0xFF2E7D32) to stringResource(R.string.conn_connected)
-		is ConnectionState.Connecting -> Color(0xFFF9A825) to stringResource(R.string.conn_connecting)
+		is ConnectionState.Connected -> ZooColors.success to stringResource(R.string.conn_connected)
+		is ConnectionState.Connecting -> ZooColors.warning to stringResource(R.string.conn_connecting)
 		else -> if (connectionState is ConnectionState.Error) {
-			Color(0xFFC62828) to stringResource(R.string.conn_error)
+			MaterialTheme.colorScheme.error to stringResource(R.string.conn_error)
 		} else {
-			Color(0xFFC62828) to stringResource(R.string.conn_disconnected)
+			MaterialTheme.colorScheme.error to stringResource(R.string.conn_disconnected)
 		}
 	}
 
@@ -199,11 +208,23 @@ private fun StatusTopBar(
 
 	Surface(shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
 		Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, bottom = if (hasChips) 0.dp else 2.dp)) {
-			// Row 1: title + animated status pill + icon buttons.
+			// Row 1: brand badge + app name + animated status pill + icon buttons (session 12 mockup).
 			Row(
-				modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+				modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
 				verticalAlignment = Alignment.CenterVertically,
+				horizontalArrangement = Arrangement.spacedBy(10.dp),
 			) {
+				// Rounded lavender app-icon badge, echoing the launcher icon.
+				Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(12.dp)) {
+					Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+						Icon(
+							imageVector = Icons.Filled.Pets,
+							contentDescription = null,
+							tint = MaterialTheme.colorScheme.primary,
+							modifier = Modifier.size(22.dp),
+						)
+					}
+				}
 				// Full app name in the header — "Zoo" alone looked truncated; the row still has room.
 				Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
 				StatusPill(color = animatedColor, label = dotLabel, pulsing = connectionState is ConnectionState.Connecting)
@@ -218,7 +239,7 @@ private fun StatusTopBar(
 				enter = fadeIn(tween(250)) + slideInVertically(tween(350), initialOffsetY = { -it / 4 }),
 				exit = fadeOut(tween(150)) + slideOutVertically(tween(250), targetOffsetY = { -it / 4 }),
 			) {
-				Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 10.dp)) {
+				Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 10.dp, bottom = 12.dp)) {
 					if (modeLabel.isNotEmpty()) Chip(modeLabel, onClick = onModeClick)
 					if (modelLine.isNotEmpty()) Chip(modelLine, highlighted = true, onClick = onModelClick)
 					contextText?.let { Chip(it) }
@@ -284,11 +305,14 @@ private fun Chip(
 	highlighted: Boolean = false,
 	onClick: (() -> Unit)? = null,
 ) {
-	val background = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-	val foreground = if (highlighted) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+	// Session 12: the model chip is a tonal lavender pill (not a hard-filled primary), the others
+	// stay muted — matches the mockup's softer top bar.
+	val background = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+	val foreground = if (highlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
 	Surface(
 		color = background,
 		shape = CircleShape,
+		border = if (highlighted) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)) else null,
 		modifier = Modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
 	) {
 		Text(
@@ -296,7 +320,23 @@ private fun Chip(
 			color = foreground,
 			style = MaterialTheme.typography.labelMedium,
 			maxLines = 1,
-			modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+			modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+		)
+	}
+}
+
+/** "Aktueller Chat" section header with the live session state on the right (session 12 mockup). */
+@Composable
+private fun FeedSectionHeader(taskState: String?) {
+	Row(
+		modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		Text(stringResource(R.string.feed_section_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+		Text(
+			text = stringResource(if (taskState != null) R.string.feed_section_session_active else R.string.feed_section_session_idle),
+			style = MaterialTheme.typography.labelMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
 		)
 	}
 }
@@ -428,18 +468,19 @@ private fun ActivityFeed(
 	}
 }
 
-/** Consistent task-state badge (session 7): color + label for every state. */
+/** Consistent task-state badge (session 7): color + label for every state. Session 12: palette
+ * harmonized with the new theme (green/amber/blue tokens instead of hardcoded hex). */
 @Composable
 fun TaskStateBadge(state: String, modifier: Modifier = Modifier) {
 	val (color, label) = when (state) {
-		"running" -> Color(0xFFF9A825) to stringResource(R.string.task_running)
-		"waiting_for_input" -> Color(0xFF1565C0) to stringResource(R.string.task_waiting)
-		"completed" -> Color(0xFF2E7D32) to stringResource(R.string.task_completed)
-		"error" -> Color(0xFFC62828) to stringResource(R.string.conn_error)
+		"running" -> ZooColors.warning to stringResource(R.string.task_running)
+		"waiting_for_input" -> MaterialTheme.colorScheme.tertiary to stringResource(R.string.task_waiting)
+		"completed" -> ZooColors.success to stringResource(R.string.task_completed)
+		"error" -> MaterialTheme.colorScheme.error to stringResource(R.string.conn_error)
 		else -> MaterialTheme.colorScheme.onSurfaceVariant to "Idle"
 	}
-	Surface(color = color.copy(alpha = 0.15f), shape = CircleShape, modifier = modifier) {
-		Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+	Surface(color = color.copy(alpha = 0.16f), shape = CircleShape, modifier = modifier) {
+		Text(label, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp))
 	}
 }
 
@@ -448,7 +489,7 @@ private fun ActivityRow(group: ToolText.ToolGroup, onPickSuggestion: (RemoteSugg
 	val item = group.representative
 	when (item.category) {
 		"reasoning" -> ReasoningRow(item)
-		"text" -> MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth())
+		"text" -> AssistantBlock { MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth()) }
 		"completion_result" -> CompletionRow(item)
 		"tool", "command" -> ToolRow(group)
 		"error" -> ErrorRow(item)
@@ -460,27 +501,52 @@ private fun ActivityRow(group: ToolText.ToolGroup, onPickSuggestion: (RemoteSugg
 	}
 }
 
+/**
+ * Assistant header (session 12 mockup): a round avatar badge + "Assistent" above the message body,
+ * so the feed reads like a chat instead of a flat list of paragraphs.
+ */
+@Composable
+private fun AssistantBlock(content: @Composable () -> Unit) {
+	Column(modifier = Modifier.fillMaxWidth()) {
+		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 6.dp)) {
+			Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = CircleShape) {
+				Box(modifier = Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+					Icon(
+						imageVector = Icons.Filled.SmartToy,
+						contentDescription = null,
+						tint = MaterialTheme.colorScheme.primary,
+						modifier = Modifier.size(17.dp),
+					)
+				}
+			}
+			Text(stringResource(R.string.feed_assistant), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+		}
+		content()
+	}
+}
+
 /** Collapsible reasoning line: "Thinking…" + expandable streaming text. */
 @Composable
 private fun ReasoningRow(item: ActivityItem) {
 	var expanded by remember(item.ts) { mutableStateOf(false) }
 	val streaming = item.partial == true && !expanded
 
+	// Session 12 mockup: tonal lavender card so reasoning reads as a distinct, calm block.
 	Surface(
-		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-		shape = RoundedCornerShape(10.dp),
+		color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+		shape = RoundedCornerShape(14.dp),
 		modifier = Modifier.fillMaxWidth(),
 	) {
 		// Session 8b UI fix: the whole row (chevron included) toggles expansion on tap.
-		Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp).clickable { expanded = !expanded }) {
-			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).clickable { expanded = !expanded }) {
+			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 				Icon(
 					imageVector = Icons.Filled.Psychology,
 					contentDescription = null,
-					tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-					modifier = Modifier.size(15.dp),
+					tint = MaterialTheme.colorScheme.primary,
+					modifier = Modifier.size(16.dp),
 				)
-				Text(if (streaming) stringResource(R.string.reasoning_thinking) else stringResource(R.string.reasoning_done), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+				Text(if (streaming) stringResource(R.string.reasoning_thinking) else stringResource(R.string.reasoning_done), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
 				Icon(
 					imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
 					contentDescription = if (expanded) stringResource(R.string.cd_collapse) else stringResource(R.string.cd_expand),
@@ -495,13 +561,13 @@ private fun ReasoningRow(item: ActivityItem) {
 	}
 }
 
-/** Green "✓ Task Completed" header + markdown body. */
+/** Green "✓ Task Completed" header + markdown body (session 12: green check like the status pills). */
 @Composable
 private fun CompletionRow(item: ActivityItem) {
 	Column(modifier = Modifier.fillMaxWidth()) {
 		Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-			Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-			Text(stringResource(R.string.completion_header), style = MaterialTheme.typography.titleSmall)
+			Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = ZooColors.success, modifier = Modifier.size(18.dp))
+			Text(stringResource(R.string.completion_header), style = MaterialTheme.typography.titleSmall, color = ZooColors.success)
 		}
 		if (!item.text.isNullOrBlank()) {
 			MarkdownText(item.text.orEmpty(), modifier = Modifier.padding(top = 4.dp).fillMaxWidth())
@@ -510,10 +576,11 @@ private fun CompletionRow(item: ActivityItem) {
 }
 
 /**
- * Tool/command chip (session 11 redesign): a color-coded icon, a short human label ("Datei lesen ·
- * placeadd.php") and — when the call carries extra context — a muted detail line (regex, pattern,
- * diff stats …). Long JSON payloads are gone; the raw payload stays reachable by tapping the chip,
- * and runs of identical calls collapse into one chip with an "×N" badge.
+ * Tool/command card (session 12 mockup): dark card with a round icon badge in the tool's category
+ * color, a bold human label ("Datei lesen · placeadd.php"), a muted detail line (regex, pattern,
+ * diff stats …) and a status pill on the right ("Fertig" / "Läuft…"). Long JSON payloads are gone;
+ * the raw payload stays reachable by tapping the card, and runs of identical calls collapse into
+ * one card with an "×N" badge.
  */
 @Composable
 private fun ToolRow(group: ToolText.ToolGroup) {
@@ -528,73 +595,95 @@ private fun ToolRow(group: ToolText.ToolGroup) {
 	val raw = item.text?.trim().orEmpty()
 	// The raw payload (full JSON / multi-line script) stays reachable behind a tap.
 	val expandable = raw.isNotEmpty() && (parsed?.tool != null || '\n' in raw)
+	val running = item.partial == true
 
 	var expanded by remember(item.ts) { mutableStateOf(false) }
 
 	Surface(
-		color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-		shape = RoundedCornerShape(10.dp),
-		modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+		color = MaterialTheme.colorScheme.surfaceContainer,
+		shape = RoundedCornerShape(16.dp),
+		modifier = Modifier.fillMaxWidth(),
 	) {
-		Row {
-			// Thin accent bar in the tool category's color — makes read/search/edit chains scannable at a glance.
-			Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(tint.copy(alpha = 0.85f), shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)))
-			Column(
-				modifier = Modifier.weight(1f).padding(start = 10.dp, end = 10.dp, top = 7.dp, bottom = 7.dp)
-					.then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier),
-			) {
-				Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-					Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+		Column(
+			modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)
+				.then(if (expandable) Modifier.clickable { expanded = !expanded } else Modifier),
+			verticalArrangement = Arrangement.spacedBy(4.dp),
+		) {
+			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+				// Round icon badge tinted with the tool category color (mockup style).
+				Surface(color = tint.copy(alpha = 0.16f), shape = CircleShape) {
+					Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+						Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+					}
+				}
+				Text(
+					text = buildString {
+						append(label)
+						if (group.count > 1) append("  ·  ×").append(group.count)
+					},
+					style = MaterialTheme.typography.titleSmall,
+					color = MaterialTheme.colorScheme.onSurface,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+					// Fills the remaining width so the status pill sits at the card's right edge.
+					modifier = Modifier.weight(1f),
+				)
+				if (parsed?.isOutsideWorkspace == true) {
 					Text(
-						text = buildString {
-							append(label)
-							if (group.count > 1) append("  ·  ×").append(group.count)
-						},
-						style = MaterialTheme.typography.bodySmall,
-						color = MaterialTheme.colorScheme.onSurface,
+						stringResource(R.string.tool_outside_workspace),
+						style = MaterialTheme.typography.labelSmall,
+						color = MaterialTheme.colorScheme.tertiary,
 						maxLines = 1,
-						overflow = TextOverflow.Ellipsis,
-						modifier = Modifier.weight(1f, fill = false),
-					)
-					if (parsed?.isOutsideWorkspace == true) {
-						Text(
-							stringResource(R.string.tool_outside_workspace),
-							style = MaterialTheme.typography.labelSmall,
-							color = MaterialTheme.colorScheme.tertiary,
-							maxLines = 1,
-						)
-					}
-					if (expandable) {
-						Icon(
-							imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-							contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
-							tint = MaterialTheme.colorScheme.onSurfaceVariant,
-							modifier = Modifier.size(16.dp),
-						)
-					}
-				}
-				if (!detail.isNullOrBlank()) {
-					Text(
-						detail,
-						style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-						maxLines = if (expanded) 4 else 1,
-						overflow = TextOverflow.Ellipsis,
-						modifier = Modifier.padding(top = 2.dp, start = 23.dp),
 					)
 				}
-				if (expanded) {
-					Text(
-						raw,
-						style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-						maxLines = 8,
-						overflow = TextOverflow.Ellipsis,
-						modifier = Modifier.padding(top = 4.dp, start = 23.dp),
+				StatusPillLabel(
+					label = stringResource(if (running) R.string.tool_status_running else R.string.tool_status_done),
+					color = if (running) ZooColors.warning else ZooColors.success,
+				)
+				if (expandable) {
+					Icon(
+						imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+						contentDescription = stringResource(if (expanded) R.string.cd_collapse else R.string.cd_expand),
+						tint = MaterialTheme.colorScheme.onSurfaceVariant,
+						modifier = Modifier.size(18.dp),
 					)
 				}
 			}
+			if (!detail.isNullOrBlank()) {
+				Text(
+					detail,
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					maxLines = if (expanded) 4 else 2,
+					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.padding(start = 42.dp),
+				)
+			}
+			if (expanded) {
+				Text(
+					raw,
+					style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					maxLines = 8,
+					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.padding(start = 42.dp, top = 2.dp),
+				)
+			}
 		}
+	}
+}
+
+/** Small tonal status pill (mockup style: "Fertig"/"Erfolgreich" green, "Läuft…" amber). */
+@Composable
+private fun StatusPillLabel(label: String, color: Color) {
+	Surface(color = color.copy(alpha = 0.16f), shape = CircleShape) {
+		Text(
+			label,
+			style = MaterialTheme.typography.labelMedium,
+			color = color,
+			maxLines = 1,
+			modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+		)
 	}
 }
 
@@ -700,12 +789,12 @@ private fun ErrorRow(item: ActivityItem) {
 private fun AskRow(item: ActivityItem, onPickSuggestion: (RemoteSuggestion) -> Unit = {}) {
 	val answered = item.answered == true
 	Surface(
-		color = if (answered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.secondaryContainer,
-		shape = RoundedCornerShape(8.dp),
-		modifier = Modifier.fillMaxWidth().alpha(if (answered) 0.65f else 1f),
+		color = if (answered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.secondaryContainer,
+		shape = RoundedCornerShape(14.dp),
+		modifier = Modifier.fillMaxWidth().alpha(if (answered) 0.6f else 1f),
 	) {
-		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-			Text(stringResource(R.string.ask_header, item.category), style = MaterialTheme.typography.labelMedium, color = if (answered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer)
+		Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+			Text(stringResource(R.string.ask_header, item.category), style = MaterialTheme.typography.labelLarge, color = if (answered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer)
 			val question = askQuestionText(item)
 			if (!question.isNullOrBlank()) {
 				Text(question, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
@@ -728,9 +817,9 @@ private fun askQuestionText(item: ActivityItem): String? = AskText.question(item
 @Composable
 private fun GenericRow(item: ActivityItem) {
 	// Session 8b UI fix: user feedback (and other plain-text says) render as visible markdown — the
-	// previous label-only rendering swallowed the text.
+	// previous label-only rendering swallowed the text. Session 12: same assistant header as text rows.
 	if (!item.text.isNullOrBlank()) {
-		MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth())
+		AssistantBlock { MarkdownText(item.text.orEmpty(), modifier = Modifier.fillMaxWidth()) }
 	} else {
 		Text(item.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 	}
@@ -747,10 +836,10 @@ private fun SuggestionChipsColumn(suggestions: List<RemoteSuggestion>, onPick: (
 			}
 			Surface(
 				color = MaterialTheme.colorScheme.surfaceVariant,
-				shape = RoundedCornerShape(6.dp),
+				shape = RoundedCornerShape(10.dp),
 				modifier = Modifier.fillMaxWidth().clickable(onClick = { onPick(suggestion) }),
 			) {
-				Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+				Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
 			}
 		}
 	}
@@ -812,9 +901,9 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 	Surface(shadowElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
 		Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
 			if (ask != null && ask.canApprove) {
-				Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
-					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_approve)) }
-					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.btn_deny)) }
+				Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 6.dp)) {
+					Button(onClick = { viewModel.approve() }, enabled = !state.busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.btn_approve)) }
+					OutlinedButton(onClick = { viewModel.deny() }, enabled = !state.busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.btn_deny)) }
 				}
 			}
 
@@ -825,41 +914,69 @@ private fun InputRow(state: StatusUiState, viewModel: StatusViewModel) {
 					TaskStateBadge(task.state)
 					if (canStop) {
 						Spacer(Modifier.weight(1f))
-						OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+						OutlinedButton(onClick = { viewModel.stopTask() }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), shape = CircleShape) {
 							Text(stringResource(R.string.btn_stop), style = MaterialTheme.typography.labelMedium)
 						}
 					}
 				}
 			}
 
+			// Session 12 mockup: borderless filled pill field + round lavender send button (up arrow).
 			Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-				OutlinedTextField(
-					value = input,
-					onValueChange = { input = it },
-					placeholder = {
-						Text(
-							when {
-								ask != null && ask.expectsText -> stringResource(R.string.input_placeholder_answer)
-								task?.taskId != null -> stringResource(R.string.input_placeholder_message)
-								else -> stringResource(R.string.input_placeholder_new_session)
-							}
-						)
-					},
-					singleLine = true,
-					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-					keyboardActions = KeyboardActions(onSend = {
-						if (input.isNotBlank() && !state.busy) {
-							viewModel.sendText(input)
-							input = ""
-						}
-					}),
+				Surface(
+					color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+					shape = RoundedCornerShape(24.dp),
 					modifier = Modifier.weight(1f),
-				)
-				Spacer(Modifier.width(8.dp))
+				) {
+					TextField(
+						value = input,
+						onValueChange = { input = it },
+						placeholder = {
+							Text(
+								when {
+									ask != null && ask.expectsText -> stringResource(R.string.input_placeholder_answer)
+									task?.taskId != null -> stringResource(R.string.input_placeholder_message)
+									else -> stringResource(R.string.input_placeholder_new_session)
+								},
+								style = MaterialTheme.typography.bodyMedium,
+							)
+						},
+						singleLine = true,
+						keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+						keyboardActions = KeyboardActions(onSend = {
+							if (input.isNotBlank() && !state.busy) {
+								viewModel.sendText(input)
+								input = ""
+							}
+						}),
+						colors = TextFieldDefaults.colors(
+							focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+							unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+							disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+							focusedIndicatorColor = Color.Transparent,
+							unfocusedIndicatorColor = Color.Transparent,
+							disabledIndicatorColor = Color.Transparent,
+						),
+						modifier = Modifier.fillMaxWidth(),
+					)
+				}
+				Spacer(Modifier.width(10.dp))
 				if (state.busy) {
-					CircularProgressIndicator(modifier = Modifier.size(24.dp))
+					CircularProgressIndicator(modifier = Modifier.size(26.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.5.dp)
 				} else {
-					Button(onClick = { viewModel.sendText(input); input = "" }, enabled = canSend) { Text(stringResource(R.string.btn_send)) }
+					Button(
+						onClick = { viewModel.sendText(input); input = "" },
+						enabled = canSend,
+						shape = RoundedCornerShape(16.dp),
+						contentPadding = PaddingValues(0.dp),
+						modifier = Modifier.size(48.dp),
+					) {
+						Icon(
+							imageVector = Icons.Filled.ArrowUpward,
+							contentDescription = stringResource(R.string.btn_send),
+							modifier = Modifier.size(22.dp),
+						)
+					}
 				}
 			}
 		}

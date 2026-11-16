@@ -48,6 +48,13 @@
 	<string name="task_running">Running…</string>
 	<string name="task_waiting">Waiting for input</string>
 	<string name="task_completed">Done</string>
+	<!-- Feed section + assistant header (session 12 redesign). -->
+	<string name="feed_section_title">Current chat</string>
+	<string name="feed_section_session_active">Session active</string>
+	<string name="feed_section_session_idle">No session</string>
+	<string name="feed_assistant">Assistant</string>
+	<string name="tool_status_running">Running</string>
+	<string name="tool_status_done">Done</string>
 	<string name="reasoning_thinking">Thinking…</string>
 	<string name="reasoning_done">Thoughts</string>
 	<string name="cd_collapse">Collapse</string>
