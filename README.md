@@ -63,6 +63,8 @@ gradlew.bat test             :: JVM unit tests (API parsing)
 
 Version catalog in `gradle/libs.versions.toml`; `versionName` is bumped per session (`0.x.y-sessionN`).
 
+**Release channel:** GitHub Releases carry the **debug APK** (deliberate — no signing config yet, direct install over any previous version). A signed `assembleRelease` build would need a maintained keystore; revisit before Play Store publishing.
+
 ## Error cases (app side)
 
 | Case | Behavior |
